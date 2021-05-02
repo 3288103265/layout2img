@@ -36,3 +36,6 @@ roi_layers.egg-info/
 *.json
 
 *.h5
+
+*.pth
+datasets

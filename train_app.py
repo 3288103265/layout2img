@@ -23,7 +23,7 @@ from tqdm import tqdm
 
 def get_dataset(dataset, img_size):
     if dataset == "coco":
-        data = CocoSceneGraphDataset(image_dir='./datasets/coco/images/train2017/',
+        data = CocoSceneGraphDataset(image_dir='./datasets/coco/train2017/',
                                      instances_json='./datasets/coco/annotations/instances_train2017.json',
                                      stuff_json='./datasets/coco/annotations/stuff_train2017.json',
                                      stuff_only=True, image_size=(img_size, img_size), left_right_flip=True)
@@ -44,7 +44,8 @@ def main(args):
     num_classes = 184 if args.dataset == 'coco' else 179
     num_obj = 8 if args.dataset == 'coco' else 31
 
-    args.out_path = os.path.join(args.out_path, args.dataset + '_1gpu', str(img_size))
+    # args.out_path = os.path.join(args.out_path, args.dataset + '_1gpu', str(img_size))
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_ids
 
     # data loader
     train_data = get_dataset(args.dataset, img_size)
@@ -197,7 +198,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, default='vg',
+    parser.add_argument('--dataset', type=str, default='coco',
                         help='training dataset')
     parser.add_argument('--batch_size', type=int, default=12,
                         help='mini-batch size of training data. Default: 32')
@@ -209,6 +210,7 @@ if __name__ == "__main__":
                         help='learning rate for generator')
     parser.add_argument('--out_path', type=str, default='./outputs/tmp/apponly',
                         help='path to output files')
+    parser.add_argument('--gpu_ids', type=str, required=True)
     # parser.add_argument('--checkpoint', type=str, default='./outputs/tmp/app/model/G_10.pth',
     #                     help='path of checkpoint')
     args = parser.parse_args()

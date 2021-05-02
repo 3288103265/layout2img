@@ -2,6 +2,7 @@ import json, os, random, math
 from collections import defaultdict
 
 import torch
+from torch.serialization import save
 from torch.utils.data import Dataset
 import torchvision.transforms as T
 
@@ -10,6 +11,8 @@ import PIL
 from skimage.transform import resize as imresize
 import pycocotools.mask as mask_utils
 from random import shuffle
+# import io
+from skimage import io, img_as_ubyte
 
 
 class CocoSceneGraphDataset(Dataset):
@@ -246,6 +249,14 @@ class CocoSceneGraphDataset(Dataset):
 
         filename = self.image_id_to_filename[image_id]
         image_path = os.path.join(self.image_dir, filename)
+        
+        # save_path = "outputs/coco128"
+        # file_path = os.path.join(
+        #     "datasets/coco/val2017", '{}'.format(filename))
+        # img = io.imread(file_path)
+        # resize_img = imresize(img, (128, 128))
+        # io.imsave(os.path.join(save_path, "{}.png".format(filename.split(".")[0])), img_as_ubyte(resize_img))
+        
         with open(image_path, 'rb') as f:
             with PIL.Image.open(f) as image:
                 if flip:

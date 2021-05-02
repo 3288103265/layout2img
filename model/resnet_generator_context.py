@@ -594,7 +594,7 @@ class background_foreground_generator(nn.Module):
         return im
 
 
-class context_aware_generator(nn.Module):
+class context_aware_generator(nn.Module): # RESNET generator v1 + box attention
     def __init__(self, ch=64, z_dim=128, num_classes=10, output_dim=3):
         super(context_aware_generator, self).__init__()
 

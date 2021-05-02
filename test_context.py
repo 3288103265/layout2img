@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 def get_dataloader(dataset='coco', img_size=128):
     if dataset == 'coco':
-        dataset = CocoSceneGraphDataset(image_dir='./datasets/coco/images/val2017/',
+        dataset = CocoSceneGraphDataset(image_dir='./datasets/coco/val2017/',
                                         instances_json='./datasets/coco/annotations/instances_val2017.json',
                                         stuff_json='./datasets/coco/annotations/stuff_val2017.json',
                                         stuff_only=True, image_size=(img_size, img_size), left_right_flip=False)
