@@ -49,6 +49,7 @@ def main(args):
 
     # data loader
     train_data = get_dataset(args.dataset, img_size)
+    print(f"{args.dataset.title()} datasets with {len(train_data)} samples has been created!")
 
     num_gpus = torch.cuda.device_count()
     num_workers = 20
@@ -102,6 +103,9 @@ def main(args):
     writer = SummaryWriter(os.path.join(args.out_path, 'log'))
     # writer = None
     logger = setup_logger("lostGAN", args.out_path, 0)
+    for arg in vars(args):
+        logger.info("%15s : %-15s" % (arg, str(getattr(args, arg))))
+
     logger.info(netG)
     logger.info(netD)
 
