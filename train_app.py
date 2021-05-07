@@ -51,7 +51,7 @@ def main(args):
     train_data = get_dataset(args.dataset, img_size)
 
     num_gpus = torch.cuda.device_count()
-    num_workers = 2
+    num_workers = 20
     if num_gpus > 1:
         parallel = True
         args.batch_size = args.batch_size * num_gpus
