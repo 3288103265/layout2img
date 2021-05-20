@@ -168,6 +168,102 @@ class ResnetDiscriminator128_app(nn.Module):
         return out_im, out_obj, out_app
 
 
+class ResnetDiscriminator128_app_sub(nn.Module): # add sub_label
+    def __init__(self, num_classes=0, input_dim=3, ch=64):
+        super(ResnetDiscriminator128_app_sub, self).__init__()
+        self.num_classes = num_classes
+
+        self.block1 = OptimizedBlock(3, ch, downsample=True)
+        self.block2 = ResBlock(ch, ch * 2, downsample=True)
+        self.block3 = ResBlock(ch * 2, ch * 4, downsample=True)
+        self.block4 = ResBlock(ch * 4, ch * 8, downsample=True)
+        self.block5 = ResBlock(ch * 8, ch * 16, downsample=True)
+        self.block6 = ResBlock(ch * 16, ch * 16, downsample=False)
+        self.l7 = nn.utils.spectral_norm(nn.Linear(ch * 16, 1))
+        self.activation = nn.ReLU()
+
+        self.roi_align_s = RoIAlign((8, 8), 1.0 / 4.0, int(0))
+        self.roi_align_l = RoIAlign((8, 8), 1.0 / 8.0, int(0))
+
+        self.block_obj3 = ResBlock(ch * 2, ch * 4, downsample=False)
+        self.block_obj4 = ResBlock(ch * 4, ch * 8, downsample=False)
+        self.block_obj5 = ResBlock(ch * 8, ch * 16, downsample=True)
+        self.l_obj = nn.utils.spectral_norm(nn.Linear(ch * 16, 1))
+        self.l_y = nn.utils.spectral_norm(nn.Embedding(num_classes, ch * 16))
+        # apperance discriminator
+        self.app_conv = ResBlock(ch * 8, ch * 8, downsample=False)
+        self.l_y_app = nn.utils.spectral_norm(
+            nn.Embedding(num_classes, ch * 8))
+        self.app = nn.utils.spectral_norm(nn.Linear(ch * 16, 1))
+
+    def forward(self, x, y=None, bbox=None):
+        b = bbox.size(0)
+        num_o = bbox.shape[0] * bbox.shape[1]
+        # 128x128
+        x = self.block1(x)  # (bs, 64, 64, 64)
+        # 64x64
+        x1 = self.block2(x)  # (bs, 128, 32, 32)
+        # 32x32
+        x2 = self.block3(x1)  # (bs, 256, 16, 16)
+        # 16x16
+        x = self.block4(x2)
+        # 8x8
+        x = self.block5(x)  # (bs, 1024, 4, 4)
+        # 4x4
+        x = self.block6(x)  # (bs, 1024, 4, 4)
+        x = self.activation(x)
+        x = torch.sum(x, dim=(2, 3))  # (bs, 1024)
+        out_im = self.l7(x)  # (bs, 1)
+
+        # obj path
+        # seperate different path, s_idx means bbox is smaller than 64*64, so that cannot extract from deep layers. (pooling out)
+        s_idx = ((bbox[:, 3] - bbox[:, 1]) < 64) * \
+            ((bbox[:, 4] - bbox[:, 2]) < 64)
+        bbox_l, bbox_s = bbox[~s_idx], bbox[s_idx]
+        # print(s_idx)
+        y_l, y_s = y[~s_idx], y[s_idx]
+
+        obj_feat_s = self.block_obj3(x1)
+        obj_feat_s = self.block_obj4(obj_feat_s)
+
+        obj_feat_s = self.roi_align_s(obj_feat_s, bbox_s)
+
+        obj_feat_l = self.block_obj4(x2)
+
+        obj_feat_l = self.roi_align_l(obj_feat_l, bbox_l)
+
+        obj_feat = torch.cat([obj_feat_l, obj_feat_s], dim=0)  # (O, 512, 8, 8)
+        y = torch.cat([y_l, y_s], dim=0)
+        # apperance
+        app_feat = self.app_conv(obj_feat)
+        app_feat1 = self.activation(app_feat) # (O, 512, 8, 8)
+
+        s1, s2, s3, s4 = app_feat1.size()
+        app_feat = app_feat1.view(s1, s2, s3 * s4)  # (O, 512, 64)
+        app_gram = torch.bmm(app_feat, app_feat.permute(
+            0, 2, 1)) / s2  # (O, 512, 512)
+
+        app_y = self.l_y_app(y).unsqueeze(
+            1).expand(s1, s2, s2)  # (O, 512, 512)
+        app_all = torch.cat([app_gram, app_y], dim=-1)  # (O, 512, 1024)
+        out_app = self.app(app_all).sum(1) / s2
+
+        # original one for single instance
+        obj_feat = self.block_obj5(obj_feat)
+        obj_feat = self.activation(obj_feat)  # (O, 1024, 4, 4)
+        obj_feat = torch.sum(obj_feat, dim=(2, 3))  # (O, 1024)
+        # print(obj_feat.shape)
+        out_obj = self.l_obj(obj_feat)
+
+
+        out_obj = out_obj + \
+            torch.sum(self.l_y(y).view(b, -1) *
+                      obj_feat.view(b, -1), dim=1, keepdim=True)
+
+        return out_im, out_obj, out_app, app_feat1
+
+
+
 class ResnetDiscriminator64(nn.Module):
     def __init__(self, num_classes=0, input_dim=3, ch=64):
         super(ResnetDiscriminator64, self).__init__()
@@ -182,7 +278,7 @@ class ResnetDiscriminator64(nn.Module):
         self.activation = nn.ReLU()
 
         # object path
-        self.roi_align = ROIAlign((8, 8), 1.0 / 2.0, 0)
+        self.roi_align = RoIAlign((8, 8), 1.0 / 2.0, 0)
         self.block_obj4 = ResBlock(ch * 4, ch * 8, downsample=True)
         self.l_obj = nn.utils.spectral_norm(nn.Linear(ch * 8, 1))
         self.l_y = nn.utils.spectral_norm(nn.Embedding(num_classes, ch * 8))
@@ -238,8 +334,8 @@ class ResnetDiscriminator256(nn.Module):
         self.l8 = nn.utils.spectral_norm(nn.Linear(ch * 16, 1))
         self.activation = nn.ReLU()
 
-        self.roi_align_s = ROIAlign((8, 8), 1.0 / 8.0, int(0))
-        self.roi_align_l = ROIAlign((8, 8), 1.0 / 16.0, int(0))
+        self.roi_align_s = RoIAlign((8, 8), 1.0 / 8.0, int(0))
+        self.roi_align_l = RoIAlign((8, 8), 1.0 / 16.0, int(0))
 
         self.block_obj4 = ResBlock(ch * 4, ch * 8, downsample=False)
         self.block_obj5 = ResBlock(ch * 8, ch * 8, downsample=False)
@@ -420,6 +516,40 @@ class CombineDiscriminator128_app(nn.Module):
         d_out_img, d_out_obj, out_app = self.obD(images, label, bbox)
         return d_out_img, d_out_obj, out_app
 
+
+class CombineDiscriminator128_app_sub(nn.Module):
+    def __init__(self, num_classes=81):
+        super(CombineDiscriminator128_app_sub, self).__init__()
+        self.obD = ResnetDiscriminator128_app_sub(
+            num_classes=num_classes, input_dim=3)
+
+    def forward(self, images, bbox, label, mask=None):
+        idx = torch.arange(start=0, end=images.size(0),
+                           device=images.device).view(images.size(0),
+                                                      1, 1).expand(-1, bbox.size(1), -1).float()
+        #idx = idx.cuda()
+        # print(bbox)
+        bbox = bbox.cuda()
+        num_box = bbox.shape[0]*bbox.shape[1]
+        bbox[:, :, 2] = bbox[:, :, 2] + bbox[:, :, 0]
+        bbox[:, :, 3] = bbox[:, :, 3] + bbox[:, :, 1]
+        bbox = bbox * images.size(2)
+        bbox = torch.cat((idx, bbox.float()), dim=2)
+        bbox = bbox.view(-1, 5)
+        label = label.view(-1)
+
+        idx = (label != 0).nonzero().view(-1)
+        # print(idx)
+        bbox = bbox[idx]
+        label = label[idx]
+        # print(bbox.shape)
+        # print(label.shape)
+        d_out_img, d_out_obj, out_app, feat_app_sub = self.obD(images, label, bbox)
+        # padding into bs*num_o
+        feat_sub = torch.zeros(num_box, *feat_app_sub.shape[1:], device=feat_app_sub.device)
+        feat_sub[idx] = feat_app_sub # (bs*num_o, dim) 
+        
+        return d_out_img, d_out_obj, out_app, feat_sub
 
 class CombineDiscriminator64(nn.Module):
     def __init__(self, num_classes=81):

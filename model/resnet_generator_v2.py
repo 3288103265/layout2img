@@ -5,8 +5,11 @@ from .norm_module import *
 from .mask_regression import *
 from .sync_batchnorm import SynchronizedBatchNorm2d
 import numpy as np
+from model.rcnn_discriminator_app import ResBlock as ResBlock2
+from torch.nn import BatchNorm2d
 
 BatchNorm = SynchronizedBatchNorm2d
+# BatchNorm = BatchNorm2d
 
 
 class ResnetGenerator128(nn.Module):
@@ -14,7 +17,7 @@ class ResnetGenerator128(nn.Module):
         super(ResnetGenerator128, self).__init__()
         self.num_classes = num_classes
 
-        self.label_embedding = nn.Embedding(num_classes, 180)
+        self.label_embedding = nn.Embedding(num_classes, 128)
 
         num_w = 128 + 180
         self.fc = nn.utils.spectral_norm(nn.Linear(z_dim, 4 * 4 * 16 * ch))
@@ -41,16 +44,31 @@ class ResnetGenerator128(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
         self.mask_regress = MaskRegressNetv2(num_w)
+        self.block_obj_app = ResBlock2(ch * 8, ch * 8, downsample=True)
+        self.block_obj_app2 = ResBlock2(ch * 8, ch * 2, downsample=False)
+        self.activation = nn.ReLU()
+        self.bn = BatchNorm(128)
         self.init_parameter()
 
-    def forward(self, z, bbox, z_im=None, y=None):
+    def forward(self, z, bbox, z_im=None, y=None, feat_sub=None):
+
+        ## encode something
+        # feat from app
+        obj_app_feat = self.block_obj_app(feat_sub)  # (O, 512, 4, 4)
+        obj_app_feat = self.block_obj_app2(obj_app_feat)  # (O, 128, 4, 4)
+        # obj_app_feat = self.activation(obj_app_feat)
+        obj_app_feat = self.bn(obj_app_feat)  # (O, 128)
+        obj_app_feat = torch.mean(obj_app_feat, dim=(2, 3))
+        
+        # print(idx)
+        ##
         b, o = z.size(0), z.size(1)
         label_embedding = self.label_embedding(y)
 
         z = z.view(b * o, -1)
         label_embedding = label_embedding.view(b * o, -1)
 
-        latent_vector = torch.cat((z, label_embedding), dim=1).view(b, o, -1)
+        latent_vector = torch.cat((label_embedding, obj_app_feat, z), dim=1).view(b, o, -1)
 
         w = self.mapping(latent_vector.view(b * o, -1))
         # preprocess bbox
@@ -64,7 +82,7 @@ class ResnetGenerator128(nn.Module):
         # 4x4
         x = self.fc(z_im).view(b, -1, 4, 4)
         # 8x8
-        x, stage_mask = self.res1(x, w, bmask)
+        x, stage_mask = self.res1(x, w, bmask)#卡在这里了,卡在了sync norm上面, ok
 
         # 16x16
         hh, ww = x.size(2), x.size(3)
