@@ -67,7 +67,7 @@ def main(args):
 
     # Load model
     device = torch.device('cuda')
-    netG = ResnetGenerator128(num_classes=num_classes, output_dim=3).to(device)
+    netG = ResnetGenerator128_app_sub(num_classes=num_classes, output_dim=3).to(device)
     netD = CombineDiscriminator128_app_sub(num_classes=num_classes).to(device)
 
     # if os.path.isfile(args.checkpoint):
