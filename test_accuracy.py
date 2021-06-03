@@ -29,6 +29,8 @@ from random import shuffle
 # import io
 from skimage import io, img_as_ubyte
 
+### 该文件用于生成验证图像,使用和和GT相同并回复成原来尺寸，并且使用GT补充道5000，用来加载val数据集的标注文件，然后使用test_accuracy_net.py进行测试
+
 
 class CocoSceneGraphDataset(Dataset):
     def __init__(self, image_dir, instances_json, stuff_json=None,
@@ -617,8 +619,8 @@ def main(args):
 
     args.model_path = args.model_path.format(args.dataset, args.model_idx)
     args.sample_path = args.sample_path.format(args.dataset, args.model_idx)
-    if args.dataset == 'coco':
-        args.sample_path += '_5'
+    # if args.dataset == 'coco':
+    #     args.sample_path += '_5'
 
     dataloader = get_dataloader(args.dataset)
 
@@ -665,6 +667,14 @@ def main(args):
             
             imageio.imwrite("{save_path}/{filename}".format(save_path=args.sample_path,filename=filename[0]), fake_images_uint)
             pbar.update(1)
+    
+    dir = os.path.dirname(args.sample_path)
+    tmp = os.path.join(dir, "tmp")
+    os.mkdir(tmp)
+    os.system(f"cp ~/datasets/coco/val2017/*.jpg {tmp}")
+    os.system(f"cp {os.path.join(args.sample_path, '*.jpg')} {tmp}")
+    os.system(f"cp {os.path.join(tmp, '*.jpg')} {args.sample_path}")
+    os.system(f"rm -rf {tmp}")
 
 
 if __name__ == "__main__":
