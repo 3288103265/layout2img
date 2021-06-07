@@ -76,7 +76,7 @@ def main(args):
     #   ckpt_path_list.reverse()
     print(ckpt_path_list)
 
-    ckpt_path_list = ckpt_path_list[sample_start-1:]
+    # ckpt_path_list = ckpt_path_list[sample_start-1:]
     ckpt_path_list.reverse()
     sample_path_list = [os.path.join(args.model_root,'samples_'+ os.path.basename(
         p).split('.')[0].replace('_', '')) for p in ckpt_path_list]
@@ -128,7 +128,7 @@ def test_ckpt(model_path, netG, sample_path, dataloader, num_o, save_gt=False):
     thres = 2.0
     sample_num = 5
     for idx, data in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
-        real_images, label, bbox, filename = data
+        real_images, label, bbox = data
         batch_size = real_images.shape[0]
  
         real_images, label = real_images.cuda(), label.long().unsqueeze(-1).cuda()
@@ -142,10 +142,10 @@ def test_ckpt(model_path, netG, sample_path, dataloader, num_o, save_gt=False):
                 z_obj, bbox, z_im, label.squeeze(dim=-1))
          
             for j,img in enumerate(fake_images):
-                misc.imsave("{save_path}/images/sample{".format(save_path=sample_path,
-                            id=idx*batch_size+j, s_i=s_i), img.cpu().detach().numpy().transpose(1, 2, 0)*0.5+0.5)
-                # misc.imsave("{save_path}/images/sample{id}_{s_i}.jpg".format(save_path=sample_path,
+                # misc.imsave("{save_path}/images/sample{".format(save_path=sample_path,
                 #             id=idx*batch_size+j, s_i=s_i), img.cpu().detach().numpy().transpose(1, 2, 0)*0.5+0.5)
+                misc.imsave("{save_path}/images/sample{id}_{s_i}.jpg".format(save_path=sample_path,
+                            id=idx*batch_size+j, s_i=s_i), img.cpu().detach().numpy().transpose(1, 2, 0)*0.5+0.5)
         # if save_gt:
         #     for k, img in enumerate(real_images):
         #         misc.imsave("{save_path}/images_gt/sample{id}.jpg".format(save_path=sample_path,

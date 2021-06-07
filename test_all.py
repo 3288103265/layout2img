@@ -20,6 +20,7 @@ import natsort
 import warnings
 warnings.filterwarnings("ignore")
 
+## single batch_size
 
 def get_dataloader(dataset='coco', img_size=128, batch_size=1):
     if dataset == 'coco':
