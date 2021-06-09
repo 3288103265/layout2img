@@ -21,6 +21,7 @@ from torch.utils.data import DataLoader
 
 warnings.filterwarnings("ignore")
 
+# python test_accuracy_net.py -op outputs/app/logits_coco_128_G230_pred.csv --coco_val_image_dir outputs/app/samples_G230_ori_size/ -b 1 -g 0
 
 
 parser = argparse.ArgumentParser(description='Training a pytorch model to classify different plants')
