@@ -1,5 +1,6 @@
 import argparse
 from collections import OrderedDict
+from random import sample
 import numpy as np
 from scipy import misc
 import torch
@@ -23,9 +24,9 @@ def get_dataloader(dataset='coco', img_size=128):
     elif dataset == 'vg':
         # with open("./datasets/vg/vocab.json", "r") as read_file:
         #     vocab = json.load(read_file)
-        dataset = VgSceneGraphDataset(vocab_json='./data/tmp/vocab.json',
-                                      h5_path='./data/tmp/preprocess_vg/val.h5',
-                                      image_dir='./datasets/vg/',
+        dataset = VgSceneGraphDataset(vocab_json='./datasets/vg/vocab.json',
+                                      h5_path='./datasets/vg/val.h5',
+                                      image_dir='./datasets/vg/images',
                                       image_size=(128, 128), left_right_flip=False, max_objects=30)
 
     dataloader = torch.utils.data.DataLoader(
@@ -35,6 +36,7 @@ def get_dataloader(dataset='coco', img_size=128):
 
 
 def main(args):
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
     device = torch.device('cuda')
     num_classes = 184 if args.dataset == 'coco' else 179
     num_o = 8 if args.dataset == 'coco' else 31
@@ -62,9 +64,10 @@ def main(args):
 
     netG.cuda()
     netG.eval()
-
-    if not os.path.exists(args.sample_path):
-        os.makedirs(args.sample_path)
+    sample_path = args.sample_path + "/images"
+    if not os.path.exists(sample_path):
+        os.makedirs(sample_path)
+    
     thres = 2.0
     with tqdm(total=dataloader.__len__() * args.num_img) as pbar:
         for idx, data in enumerate(dataloader):
@@ -77,9 +80,13 @@ def main(args):
                 fake_images = netG.forward(z_obj, bbox, z_im, label.squeeze(dim=-1))
                 fake_images_uint = img_as_ubyte(fake_images[0].cpu().detach().numpy().transpose(1, 2, 0) * 0.5 + 0.5)
                 # imageio.imwrite("{save_path}/sample_{idx}_numb_{numb}.jpg".format(save_path=args.sample_path, idx=idx, numb=j), fake_images[0].cpu().detach().numpy().transpose(1, 2, 0)* 0.5 + 0.5)
-                imageio.imwrite("{save_path}/sample_{idx}_numb_{numb}.jpg".format(save_path=args.sample_path, idx=idx, numb=j), fake_images_uint)
+                imageio.imwrite("{save_path}/images/sample_{idx}_numb_{numb}.jpg".format(save_path=args.sample_path, idx=idx, numb=j), fake_images_uint)
                 pbar.update(1)
                 # pbar.update(1)
+            # real_image_uint = img_as_ubyte(
+            #     real_images[0].cpu().detach().numpy().transpose(1, 2, 0) * 0.5 + 0.5)
+            # imageio.imwrite("{save_path}_images_gt/sample_{idx}.jpg".format(
+            #     save_path=args.sample_path, idx=idx), real_image_uint)
 
 
 if __name__ == "__main__":
@@ -92,5 +99,8 @@ if __name__ == "__main__":
     parser.add_argument('--num_img', type=int, default=5, help="number of image to be generated for each layout")
     parser.add_argument('--sample_path', type=str, default='/home/liao/work_code/LostGANs/samples/tmp/app/vg/G40/128_5',
                         help='path to save generated images')
+    parser.add_argument('--gpu_id', type=str, default="0")
     args = parser.parse_args()
     main(args)
+
+# python test_context_app.py --dataset vg --model_path pretrained_model/G_app_context_vgg.pth --sample_path outputs/pretrained_vg --gpu_id 6
