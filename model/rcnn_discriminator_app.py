@@ -165,7 +165,7 @@ class ResnetDiscriminator128_app(nn.Module):
 
         out_obj = out_obj + torch.sum(self.l_y(y).view(b, -1) * obj_feat.view(b, -1), dim=1, keepdim=True)
 
-        return out_im, out_obj, out_app
+        return out_im, out_obj, out_app, obj_feat
 
 
 class ResnetDiscriminator64(nn.Module):
@@ -417,8 +417,8 @@ class CombineDiscriminator128_app(nn.Module):
         label = label[idx]
         # print(bbox.shape)
         # print(label.shape)
-        d_out_img, d_out_obj, out_app = self.obD(images, label, bbox)
-        return d_out_img, d_out_obj, out_app
+        d_out_img, d_out_obj, out_app, obj_feat = self.obD(images, label, bbox)
+        return d_out_img, d_out_obj, out_app, obj_feat
 
 
 class CombineDiscriminator64(nn.Module):
