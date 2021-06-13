@@ -3,6 +3,7 @@ import os
 import pickle
 import time
 import datetime
+from typing import OrderedDict
 from utils.contrastive import NT_Xent_loss, XT_Xent_loss
 import numpy as np
 import torch
@@ -20,6 +21,8 @@ from model.rcnn_discriminator_app import *
 from model.sync_batchnorm import DataParallelWithCallback
 from utils.logger import setup_logger
 from tqdm import tqdm
+import glob
+from natsort import natsorted
 
 
 def get_dataset(dataset, img_size):
@@ -71,7 +74,52 @@ def main(args):
     device = torch.device('cuda')
     netG = ResnetGenerator128(num_classes=num_classes, output_dim=3).to(device)
     netD = CombineDiscriminator128_app(num_classes=num_classes).to(device)
+    
+    assert not (bool(args.model_path) == bool(args.ckpt_from) == 1)# only choose one or both none不能同时都是1
+    # load ckpt
+    if args.model_path:
+        if not os.path.isfile(args.model_path):
+            state_dict = OrderedDict()
+        else:
+            state_dict = torch.load(args.model_path)
 
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            name = k[7:]  # remove `module.`nvidia
+            new_state_dict[name] = v
+
+        model_dict = netG.state_dict()
+        pretrained_dict = {k: v for k,
+                        v in new_state_dict.items() if k in model_dict}
+        model_dict.update(pretrained_dict)
+        netG.load_state_dict(model_dict)
+        print("Load pretrained G completed.")
+
+    # restore from ckpt.
+    if args.ckpt_from:
+        ckpt_D_path = natsorted(glob.glob(args.ckpt_from + "/model/D*.pth"))[-1]
+        ckpt_G_path = natsorted(glob.glob(args.ckpt_from + "/model/G*.pth"))[-1]
+        print("Resoring training from:")
+        print(ckpt_D_path)
+        print(ckpt_D_path)
+        assert os.path.isfile(ckpt_D_path) and os.path.isfile(ckpt_G_path)
+        
+        state_dict = torch.load(ckpt_G_path)
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            name = k[7:]  # remove `module.`nvidia
+            new_state_dict[name] = v
+        netG.load_state_dict(new_state_dict)
+        
+        state_dict = torch.load(ckpt_D_path)
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            name = k[7:]  # remove `module.`nvidia
+            new_state_dict[name] = v
+        netD.load_state_dict(new_state_dict)
+        print("Load checkpoint completed.")
+        
+        
     # if os.path.isfile(args.checkpoint):
     #     state_dict = torch.load(args.checkpoint)
 
@@ -167,24 +215,24 @@ def main(args):
             # print("d_loss_fake={:.3f}, d_loss_fobj={:.3f}, d_loss_fobj_app={:.3f}".format(d_loss_fake.item(), d_loss_fobj.item(), d_loss_fobj_app.item()))
             # print("g_loss_fake={:.3f}, g_loss_obj={:.3f}, g_loss_obj_app={:.3f}".format(g_loss_fake.item(), g_loss_obj.item(), g_loss_obj_app.item()))
             if (idx + 1) % 100 == 0:
-                elapsed = time.time() - start_time
-                elapsed = str(datetime.timedelta(seconds=elapsed))
-                logger.info("Time Elapsed: [{}]".format(elapsed))
-                logger.info("Step[{}/{}], d_out_real: {:.4f}, d_out_fake: {:.4f}, g_out_fake: {:.4f} ".format(epoch + 1,
-                                                                                                              idx + 1,
-                                                                                                              d_loss_real.item(),
-                                                                                                              d_loss_fake.item(),
-                                                                                                              g_loss_fake.item()))
-                logger.info("             d_obj_real: {:.4f}, d_obj_fake: {:.4f}, g_obj_fake: {:.4f} ".format(
-                    d_loss_robj.item(),
-                    d_loss_fobj.item(),
-                    g_loss_obj.item()))
-                logger.info("             d_obj_real_app: {:.4f}, d_obj_fake_app: {:.4f}, g_obj_fake_app: {:.4f} ".format(
-                    d_loss_robj_app.item(),
-                    d_loss_fobj_app.item(),
-                    g_loss_obj_app.item()))
+                # elapsed = time.time() - start_time
+                # elapsed = str(datetime.timedelta(seconds=elapsed))
+                # logger.info("Time Elapsed: [{}]".format(elapsed))
+                # logger.info("Step[{}/{}], d_out_real: {:.4f}, d_out_fake: {:.4f}, g_out_fake: {:.4f} ".format(epoch + 1,
+                #                                                                                               idx + 1,
+                #                                                                                               d_loss_real.item(),
+                #                                                                                               d_loss_fake.item(),
+                #                                                                                               g_loss_fake.item()))
+                # logger.info("             d_obj_real: {:.4f}, d_obj_fake: {:.4f}, g_obj_fake: {:.4f} ".format(
+                #     d_loss_robj.item(),
+                #     d_loss_fobj.item(),
+                #     g_loss_obj.item()))
+                # logger.info("             d_obj_real_app: {:.4f}, d_obj_fake_app: {:.4f}, g_obj_fake_app: {:.4f} ".format(
+                #     d_loss_robj_app.item(),
+                #     d_loss_fobj_app.item(),
+                #     g_loss_obj_app.item()))
 
-                logger.info("             pixel_loss: {:.4f}, feat_loss: {:.4f}".format(pixel_loss.item(), feat_loss.item()))
+                # logger.info("             pixel_loss: {:.4f}, feat_loss: {:.4f}".format(pixel_loss.item(), feat_loss.item()))
                 if writer is not None:
                     writer.add_image("real images", make_grid(real_images.cpu().data * 0.5 + 0.5, nrow=4), epoch * len(dataloader) + idx + 1)
                     writer.add_image("fake images", make_grid(fake_images.cpu().data * 0.5 + 0.5, nrow=4), epoch * len(dataloader) + idx + 1)
@@ -222,6 +270,10 @@ if __name__ == "__main__":
     parser.add_argument('--out_path', type=str, default='./outputs/tmp/apponly',
                         help='path to output files')
     parser.add_argument('--gpu_ids', type=str, required=True)
+    parser.add_argument('--ckpt_from', type=str, default=None,
+                        help='checkpoint path containing both D and G')
+    parser.add_argument('--model_path', type=str, default=None,
+                        help='checkpoint path, only contains G')
     # parser.add_argument('--checkpoint', type=str, default='./outputs/tmp/app/model/G_10.pth',
     #                     help='path of checkpoint')
     args = parser.parse_args()
