@@ -101,7 +101,7 @@ def main(args):
         ckpt_G_path = natsorted(glob.glob(args.ckpt_from + "/model/G*.pth"))[-1]
         print("Resoring training from:")
         print(ckpt_D_path)
-        print(ckpt_D_path)
+        print(ckpt_G_path)
         assert os.path.isfile(ckpt_D_path) and os.path.isfile(ckpt_G_path)
         
         state_dict = torch.load(ckpt_G_path)

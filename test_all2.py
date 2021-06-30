@@ -81,10 +81,10 @@ def main(args):
     sample_path_list = [os.path.join(args.model_root,'samples_'+ os.path.basename(
         p).split('.')[0].replace('_', '')) for p in ckpt_path_list]
     sample_path_list.reverse()
-    
+    sample_path_list = sample_path_list[sample_start:]    
     for idx, (ckpt_path, sample_path) in enumerate(zip(ckpt_path_list, sample_path_list)):
         
-        print(f'>>>[{idx+1}/{len(ckpt_path_list)}] --{ckpt_path}')
+        print(f'>>>[{idx+1}/{len(sample_path_list)}] --{ckpt_path}')
         res = test_ckpt(ckpt_path, netG=netG,
                   sample_path=sample_path, dataloader=dataloader, num_o=num_o)
         print(f">>>result:{res}")
