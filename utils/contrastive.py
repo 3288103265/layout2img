@@ -398,14 +398,14 @@ class XT_Xent_loss(torch.nn.Module):
             2 * num_o, -1)
         negatives_t = similarity_matrix_gt[self._get_correlated_mask(num_o).type(torch.bool)].view(
             2 * num_o, -1
-        )
+        )# 使用binary mask索引去除对角线
 
         logits = torch.cat((positives, negatives), dim=1)
         temperature = torch.cat((positives_t, negatives_t), dim=1)
         assert logits.shape == temperature.shape
         logits /= temperature
 
-        labels = torch.zeros(2 * num_o, device=zis.device).long()
+        labels = torch.zeros(2 * num_o, device=zis.device).long()# 所有正类放到了第一个位置。
         loss = self.criterion(logits, labels)
         return loss / (2 * num_o)
 
