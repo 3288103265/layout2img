@@ -176,7 +176,8 @@ def main(args):
             # update D network
             netD.zero_grad()
             real_images, label = real_images.to(device), label.long().to(device)
-            d_out_real, d_out_robj, d_out_robj_app, d_robj_feat = netD(real_images, bbox, label)
+            d_out_real, d_out_robj, d_out_robj_app, d_robj_feat, d_robj_feat_0, d_robj_feat_1, d_robj_feat_2 = netD(
+                real_images, bbox, label)
             d_robj_feat = d_robj_feat.detach()
             d_loss_real = torch.nn.ReLU()(1.0 - d_out_real).mean()
             d_loss_robj = torch.nn.ReLU()(1.0 - d_out_robj).mean()
@@ -199,14 +200,22 @@ def main(args):
             # update G network
             if (idx % 1) == 0:
                 netG.zero_grad()
-                g_out_fake, g_out_obj, g_out_obj_app, g_fobj_feat = netD(fake_images, bbox, label)
+                g_out_fake, g_out_obj, g_out_obj_app, g_fobj_feat, g_fobj_feat_0, g_fobj_feat_1, g_fobj_feat_2 = netD(fake_images, bbox, label)
                 g_loss_fake = - g_out_fake.mean()
                 g_loss_obj = - g_out_obj.mean()
                 g_loss_obj_app = - g_out_obj_app.mean()
 
                 pixel_loss = l1_loss(fake_images, real_images).mean()
                 feat_loss = vgg_loss(fake_images, real_images).mean()
-                contra_loss_fake = contra_criterion(g_fobj_feat, g_fobj_feat, d_robj_feat, d_robj_feat)
+                contra_loss_fake = contra_criterion(g_fobj_feat, 
+                                                    d_robj_feat, 
+                                                    g_fobj_feat_0, 
+                                                    d_robj_feat_0,
+                                                    g_fobj_feat_1, 
+                                                    d_robj_feat_1,
+                                                    g_fobj_feat_2, 
+                                                    d_robj_feat_2, 
+                                                    )
 
                 g_loss = g_loss_obj * lamb_obj + g_loss_fake * lamb_img + pixel_loss + feat_loss + lamb_app * g_loss_obj_app + lambda_contra * contra_loss_fake
                 g_loss.backward()
