@@ -452,7 +452,7 @@ class Rectified_NT_Xent_loss(torch.nn.Module):
         v = self._cosine_similarity(x.unsqueeze(1), y.unsqueeze(0))
         return v
     
-    def forward_level(self, zis, zis_gt, weight, margin=0):
+    def forward_level(self, zis, zis_gt, weight, margin=0.1):
         representations = torch.cat([zis, zis], dim=0)
         repr_gt = torch.cat([zis_gt, zis_gt], dim=0)
         similarity_matrix = self.similarity_function(
