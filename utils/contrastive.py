@@ -418,6 +418,7 @@ class Rectified_NT_Xent_loss(torch.nn.Module):
         self.similarity_function = self._get_similarity_function(
             use_cosine_similarity)
         self.criterion = torch.nn.CrossEntropyLoss(reduction="sum")
+        self.style_out = torch.nn.Softplus(beta=10)
 
     def _get_similarity_function(self, use_cosine_similarity):
         if use_cosine_similarity:
@@ -450,8 +451,8 @@ class Rectified_NT_Xent_loss(torch.nn.Module):
         # v shape: (N, 2N)
         v = self._cosine_similarity(x.unsqueeze(1), y.unsqueeze(0))
         return v
-
-    def forward(self, zis, zis_gt, g_obj_feat_0, d_obj_feat_0, g_obj_feat_1, d_obj_feat_1,g_obj_feat_2, d_obj_feat_2):
+    
+    def forward_content(self, zis, zis_gt, weight, margin=0):
         representations = torch.cat([zis, zis], dim=0)
         repr_gt = torch.cat([zis_gt, zis_gt], dim=0)
         similarity_matrix = self.similarity_function(
@@ -476,14 +477,35 @@ class Rectified_NT_Xent_loss(torch.nn.Module):
         )  # 使用binary mask索引去除对角线
 
         logits = torch.cat((positives, negatives), dim=1)
-        temperature = torch.cat((positives_t, negatives_t), dim=1)
-        assert logits.shape == temperature.shape
-        logits /= temperature
+        gt_similarity = torch.cat((positives_t, negatives_t), dim=1)
+        diff = (gt_similarity - logits.detach() + margin)/2.0
+        diff = self.style_out(diff)
+        assert logits.shape == gt_similarity.shape
+        logits /= gt_similarity
+        logits *= diff
 
         labels = torch.zeros(
             2 * num_o, device=zis.device).long()  # 所有正类放到了第一个位置。
         loss = self.criterion(logits, labels)
-        return loss / (2 * num_o)
+        
+        return loss / (2 * num_o) * weight
+        
+
+    def forward(self, g_obj_feat, d_obj_feat, g_obj_feat_0, d_obj_feat_0, g_obj_feat_1, d_obj_feat_1,g_obj_feat_2, d_obj_feat_2):
+        levels = [
+                  (g_obj_feat_0, d_obj_feat_0),# level 0 
+                  (g_obj_feat_1, d_obj_feat_1),# level 1
+                  (g_obj_feat_2, d_obj_feat_2),# level 2
+                  (g_obj_feat, d_obj_feat) # level -1
+                  ]
+        
+        weights = [1.0/16.0, 1.0/8.0, 1.0/4.0, 1.0]
+        losses = torch.tensor(0.0)
+        for feat, weight in zip(levels, weights):
+            losses += self.forward_level(*feat, weight)
+        
+        return losses
+ 
 
 
 def calc_derv4gp(netD, conditional_strategy, real_data, fake_data, real_labels, device):

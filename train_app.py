@@ -4,7 +4,7 @@ import pickle
 import time
 import datetime
 from typing import OrderedDict
-from utils.contrastive import NT_Xent_loss, XT_Xent_loss
+from utils.contrastive import Rectified_NT_Xent_loss
 import numpy as np
 import torch
 import torch.nn as nn
@@ -163,7 +163,7 @@ def main(args):
     vgg_loss = VGGLoss()
     vgg_loss = nn.DataParallel(vgg_loss)
     l1_loss = nn.DataParallel(nn.L1Loss())
-    contra_criterion = XT_Xent_loss(args.batch_size).cuda()
+    contra_criterion = Rectified_NT_Xent_loss().cuda()
     
     for epoch in range(args.total_epoch):
         netG.train()
