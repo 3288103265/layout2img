@@ -156,8 +156,8 @@ def main(args):
     for arg in vars(args):
         logger.info("%15s : %-15s" % (arg, str(getattr(args, arg))))
 
-    logger.info(netG)
-    logger.info(netD)
+    # logger.info(netG)
+    # logger.info(netD)
 
     start_time = time.time()
     vgg_loss = VGGLoss()
@@ -187,7 +187,7 @@ def main(args):
             # print(f"real object feat shape: {d_robj_feat.shape}")
             z = torch.randn(real_images.size(0), num_obj, z_dim).to(device)
             fake_images = netG(z, bbox, y=label.squeeze(dim=-1))
-            d_out_fake, d_out_fobj, d_out_fobj_app, _ = netD(fake_images.detach(), bbox, label)
+            d_out_fake, d_out_fobj, d_out_fobj_app, _, _, _, _  = netD(fake_images.detach(), bbox, label)
             # 真实图像不做对比损失，希望D提取特征按照原来的方式，不增加限制
             d_loss_fake = torch.nn.ReLU()(1.0 + d_out_fake).mean()
             d_loss_fobj = torch.nn.ReLU()(1.0 + d_out_fobj).mean()
@@ -208,13 +208,13 @@ def main(args):
                 pixel_loss = l1_loss(fake_images, real_images).mean()
                 feat_loss = vgg_loss(fake_images, real_images).mean()
                 contra_loss_fake = contra_criterion(g_fobj_feat, 
-                                                    d_robj_feat, 
+                                                    d_robj_feat.detach(), 
                                                     g_fobj_feat_0, 
-                                                    d_robj_feat_0,
+                                                    d_robj_feat_0.detach(),
                                                     g_fobj_feat_1, 
-                                                    d_robj_feat_1,
+                                                    d_robj_feat_1.detach(),
                                                     g_fobj_feat_2, 
-                                                    d_robj_feat_2, 
+                                                    d_robj_feat_2.detach(), 
                                                     )
 
                 g_loss = g_loss_obj * lamb_obj + g_loss_fake * lamb_img + pixel_loss + feat_loss + lamb_app * g_loss_obj_app + lambda_contra * contra_loss_fake

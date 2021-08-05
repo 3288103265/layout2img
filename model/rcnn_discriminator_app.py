@@ -134,9 +134,9 @@ class ResnetDiscriminator128_app(nn.Module):
         out_im = self.l7(x)
         
         ## get 3 level object features
-        obj_feat_0 = self.roi_align_0(x0, bbox).sum(dim=(2, 3))# 64
-        obj_feat_1 = self.roi_align_1(x1, bbox).sum(dim=(2, 3))# 128
-        obj_feat_2 = self.roi_align_2(x2, bbox).sum(dim=(2, 3))# 256
+        obj_feat_0 = self.roi_align_0(x0, bbox).mean(dim=(2, 3))# 64
+        obj_feat_1 = self.roi_align_1(x1, bbox).mean(dim=(2, 3))# 128
+        obj_feat_2 = self.roi_align_2(x2, bbox).mean(dim=(2, 3))# 256
 
         # obj path
         # seperate different path: small object and large object, large object 1/8 downsample and small object 1/4 downsample.64*64--->1/8----> 8*8 
@@ -183,7 +183,7 @@ class ResnetDiscriminator128_app(nn.Module):
         ## obj feat pool: 1024->256:
         obj_feat = self.out_pool(obj_feat.unsqueeze(0)).squeeze()
 
-        return out_im, out_obj, out_app, obj_feat_0, obj_feat_1, obj_feat_2
+        return out_im, out_obj, out_app, obj_feat, obj_feat_0, obj_feat_1, obj_feat_2
 
 
 class ResnetDiscriminator64(nn.Module):
