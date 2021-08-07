@@ -196,6 +196,8 @@ def main(args):
 
             d_loss = lamb_obj * (d_loss_robj + d_loss_fobj) + lamb_img * (d_loss_real + d_loss_fake) + lamb_app * (d_loss_robj_app + d_loss_fobj_app)
             d_loss.backward()
+            nn.utils.clip_grad_norm_(
+                netD.parameters(), max_norm=2.0, norm_type=2)
             d_optimizer.step()
 
             # update G network
@@ -233,6 +235,9 @@ def main(args):
                 writer.add_scalars("G_loss", {"fake": g_loss_fake.item(),
                                                 "obj_app": g_loss_obj_app.item(),
                                                 "obj": g_loss_obj.item(),
+                                                "pixel": pixel_loss.item(),
+                                                "feat": feat_loss.item(),
+                                                "contra": contra_loss_fake.item(),
                                                 "loss": g_loss.item()}, idx+1)
                 if (idx + 1) % 100 == 0:
                     writer.add_image("real images", make_grid(
