@@ -107,15 +107,15 @@ def main(args):
         state_dict = torch.load(ckpt_G_path)
         new_state_dict = OrderedDict()
         for k, v in state_dict.items():
-            if "module." in k:
-                name = k[7:]  # remove `module.`nvidia
+            name = k[7:] if "module." in k else k # remove `module.`nvidia
+
             new_state_dict[name] = v
         netG.load_state_dict(new_state_dict)
         
         state_dict = torch.load(ckpt_D_path)
         new_state_dict = OrderedDict()
         for k, v in state_dict.items():
-            name = k[7:]  # remove `module.`nvidia
+            name = k[7:] if "module." in k else k # remove `module.`nvidia
             new_state_dict[name] = v
         netD.load_state_dict(new_state_dict)
         print("Load checkpoint completed.")
