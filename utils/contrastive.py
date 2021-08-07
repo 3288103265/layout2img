@@ -483,6 +483,7 @@ class Rectified_NT_Xent_loss(torch.nn.Module):
         gt_similarity = torch.cat((positives_t, negatives_t), dim=1)
         diff = (gt_similarity - logits + margin)
         diff = self.style_out(20*diff).detach()
+        diff[:, 0] = 1.0
         assert logits.shape == gt_similarity.shape
         logits /= gt_similarity
         logits *= diff
