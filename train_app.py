@@ -221,43 +221,24 @@ def main(args):
                 g_loss = g_loss_obj * lamb_obj + g_loss_fake * lamb_img + pixel_loss + feat_loss + lamb_app * g_loss_obj_app + lambda_contra * contra_loss_fake
                 g_loss.backward()
                 g_optimizer.step()
-            # print("d_loss_real={:.3f}, d_loss_robj={:.3f}, d_loss_robj_app={:.3f}".format(d_loss_real.item(), d_loss_robj.item(), d_loss_robj_app.item()))
-            # print("d_loss_fake={:.3f}, d_loss_fobj={:.3f}, d_loss_fobj_app={:.3f}".format(d_loss_fake.item(), d_loss_fobj.item(), d_loss_fobj_app.item()))
-            # print("g_loss_fake={:.3f}, g_loss_obj={:.3f}, g_loss_obj_app={:.3f}".format(g_loss_fake.item(), g_loss_obj.item(), g_loss_obj_app.item()))
-            if (idx + 1) % 100 == 0:
-                # elapsed = time.time() - start_time
-                # elapsed = str(datetime.timedelta(seconds=elapsed))
-                # logger.info("Time Elapsed: [{}]".format(elapsed))
-                # logger.info("Step[{}/{}], d_out_real: {:.4f}, d_out_fake: {:.4f}, g_out_fake: {:.4f} ".format(epoch + 1,
-                #                                                                                               idx + 1,
-                #                                                                                               d_loss_real.item(),
-                #                                                                                               d_loss_fake.item(),
-                #                                                                                               g_loss_fake.item()))
-                # logger.info("             d_obj_real: {:.4f}, d_obj_fake: {:.4f}, g_obj_fake: {:.4f} ".format(
-                #     d_loss_robj.item(),
-                #     d_loss_fobj.item(),
-                #     g_loss_obj.item()))
-                # logger.info("             d_obj_real_app: {:.4f}, d_obj_fake_app: {:.4f}, g_obj_fake_app: {:.4f} ".format(
-                #     d_loss_robj_app.item(),
-                #     d_loss_fobj_app.item(),
-                #     g_loss_obj_app.item()))
-
-                # logger.info("             pixel_loss: {:.4f}, feat_loss: {:.4f}".format(pixel_loss.item(), feat_loss.item()))
-                if writer is not None:
-                    writer.add_image("real images", make_grid(real_images.cpu().data * 0.5 + 0.5, nrow=4), epoch * len(dataloader) + idx + 1)
-                    writer.add_image("fake images", make_grid(fake_images.cpu().data * 0.5 + 0.5, nrow=4), epoch * len(dataloader) + idx + 1)
-
-                    writer.add_scalars("D_loss_real", {"real": d_loss_real.item(),
-                                                       "robj": d_loss_robj.item(),
-                                                       "robj_app": d_loss_robj_app.item(),
-                                                       "loss": d_loss.item()})
-                    writer.add_scalars("D_loss_fake", {"fake": d_loss_fake.item(),
-                                                       "fobj": d_loss_fobj.item(),
-                                                       "fobj_app": d_loss_fobj_app.item()})
-                    writer.add_scalars("G_loss", {"fake": g_loss_fake.item(),
-                                                  "obj_app": g_loss_obj_app.item(),
-                                                  "obj": g_loss_obj.item(),
-                                                  "loss": g_loss.item()})
+                                                                                                          
+            if writer is not None:
+                writer.add_scalars("D_loss_real", {"real": d_loss_real.item(),
+                                                    "robj": d_loss_robj.item(),
+                                                    "robj_app": d_loss_robj_app.item(),
+                                                    "loss": d_loss.item()}, idx+1)
+                writer.add_scalars("D_loss_fake", {"fake": d_loss_fake.item(),
+                                                    "fobj": d_loss_fobj.item(),
+                                                    "fobj_app": d_loss_fobj_app.item()}, idx+1)
+                writer.add_scalars("G_loss", {"fake": g_loss_fake.item(),
+                                                "obj_app": g_loss_obj_app.item(),
+                                                "obj": g_loss_obj.item(),
+                                                "loss": g_loss.item()}, idx+1)
+                if (idx + 1) % 100 == 0:
+                    writer.add_image("real images", make_grid(
+                        real_images.cpu().data * 0.5 + 0.5, nrow=4), epoch * len(dataloader) + idx + 1)
+                    writer.add_image("fake images", make_grid(
+                        fake_images.cpu().data * 0.5 + 0.5, nrow=4), epoch * len(dataloader) + idx + 1)
 
         # save model
         if (epoch + 1) % 5 == 0:
