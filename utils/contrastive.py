@@ -453,6 +453,9 @@ class Rectified_NT_Xent_loss(torch.nn.Module):
         return v
     
     def forward_level(self, zis, zis_gt, weight, margin=0.1):
+        if weight == 0.0:
+            return weight
+            
         representations = torch.cat([zis, zis], dim=0)
         repr_gt = torch.cat([zis_gt, zis_gt], dim=0)
         similarity_matrix = self.similarity_function(
@@ -499,7 +502,8 @@ class Rectified_NT_Xent_loss(torch.nn.Module):
                   (g_obj_feat, d_obj_feat) # level -1
                   ]
         
-        weights = torch.tensor([1.0/16.0, 1.0/8.0, 1.0/4.0, 1.0]).to(g_obj_feat)
+        # weights = torch.tensor([1.0/16.0, 1.0/8.0, 1.0/4.0, 1.0]).to(g_obj_feat)
+        weights = torch.tensor([0.0, 0.0, 0.0, 1.0]).to(g_obj_feat)
         losses = torch.tensor(0.0).to(g_obj_feat)
         for feat, weight in zip(levels, weights):
             losses += self.forward_level(*feat, weight)
