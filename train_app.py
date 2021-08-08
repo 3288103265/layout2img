@@ -233,7 +233,7 @@ def main(args):
                 writer.add_scalars("D_loss_fake", {"fake": d_loss_fake.item(),
                                                     "fobj": d_loss_fobj.item(),
                                                     "fobj_app": d_loss_fobj_app.item()}, 
-                                   epoch * len(dataloader) + idx + 1
+                                   epoch * len(dataloader) + idx + 1)
                 writer.add_scalars("G_loss", {"fake": g_loss_fake.item(),
                                                 "obj_app": g_loss_obj_app.item(),
                                                 "obj": g_loss_obj.item(),
