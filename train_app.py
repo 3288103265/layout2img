@@ -228,17 +228,20 @@ def main(args):
                 writer.add_scalars("D_loss_real", {"real": d_loss_real.item(),
                                                     "robj": d_loss_robj.item(),
                                                     "robj_app": d_loss_robj_app.item(),
-                                                    "loss": d_loss.item()}, idx+1)
+                                                    "loss": d_loss.item()}, 
+                                   epoch * len(dataloader) + idx + 1)
                 writer.add_scalars("D_loss_fake", {"fake": d_loss_fake.item(),
                                                     "fobj": d_loss_fobj.item(),
-                                                    "fobj_app": d_loss_fobj_app.item()}, idx+1)
+                                                    "fobj_app": d_loss_fobj_app.item()}, 
+                                   epoch * len(dataloader) + idx + 1
                 writer.add_scalars("G_loss", {"fake": g_loss_fake.item(),
                                                 "obj_app": g_loss_obj_app.item(),
                                                 "obj": g_loss_obj.item(),
                                                 "pixel": pixel_loss.item(),
                                                 "feat": feat_loss.item(),
                                                 "contra": contra_loss_fake.item(),
-                                                "loss": g_loss.item()}, idx+1)
+                                                "loss": g_loss.item()}, 
+                                   epoch * len(dataloader) + idx + 1)
                 if (idx + 1) % 100 == 0:
                     writer.add_image("real images", make_grid(
                         real_images.cpu().data * 0.5 + 0.5, nrow=4), epoch * len(dataloader) + idx + 1)
