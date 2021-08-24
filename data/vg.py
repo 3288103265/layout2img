@@ -83,7 +83,7 @@ class VgSceneGraphDataset(Dataset):
             index = index - self.data['object_names'].size(0)
             flip = True
 
-        img_path = os.path.join(self.image_dir, self.image_paths[index])
+        img_path = os.path.join(self.image_dir, self.image_paths[index].decode("utf-8"))
 
         with open(img_path, 'rb') as f:
             with PIL.Image.open(f) as image:
