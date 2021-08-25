@@ -1,8 +1,11 @@
 import argparse
+from collections import OrderedDict
+import glob
 import os
 import pickle
 import time
 import datetime
+from natsort.natsort import natsorted
 import numpy as np
 import torch
 import torch.nn as nn
@@ -49,9 +52,9 @@ def main(args):
 
     # data loader
     train_data = get_dataset(args.dataset, img_size)
-
+    print(f"{args.dataset.title()} datasets with {len(train_data)} samples has been created!")
     num_gpus = torch.cuda.device_count()
-    num_workers = 2
+    num_workers = 15
     if num_gpus > 1:
         parallel = True
         args.batch_size = args.batch_size * num_gpus
@@ -71,6 +74,51 @@ def main(args):
 
     # if os.path.isfile(args.checkpoint):
     #     state_dict = torch.load(args.checkpoint)
+    assert not (bool(args.model_path) == bool(args.ckpt_from) == 1)# only choose one or both none不能同时都是1
+    # load ckpt
+    if args.model_path:
+        if not os.path.isfile(args.model_path):
+            state_dict = OrderedDict()
+        else:
+            state_dict = torch.load(args.model_path)
+
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            name = k[7:]  # remove `module.`nvidia
+            new_state_dict[name] = v
+
+        model_dict = netG.state_dict()
+        pretrained_dict = {k: v for k,
+                        v in new_state_dict.items() if k in model_dict}
+        model_dict.update(pretrained_dict)
+        netG.load_state_dict(model_dict)
+        print("Load pretrained G completed.")
+
+    # restore from ckpt.
+    if args.ckpt_from:
+        ckpt_D_path = natsorted(glob.glob(args.ckpt_from + "/model/D*.pth"))[-1]
+        ckpt_G_path = natsorted(glob.glob(args.ckpt_from + "/model/G*.pth"))[-1]
+        print("Resoring training from:")
+        print(ckpt_D_path)
+        print(ckpt_G_path)
+        assert os.path.isfile(ckpt_D_path) and os.path.isfile(ckpt_G_path)
+        
+        state_dict = torch.load(ckpt_G_path)
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            name = k[7:] if "module." in k else k # remove `module.`nvidia
+
+            new_state_dict[name] = v
+        netG.load_state_dict(new_state_dict)
+        
+        state_dict = torch.load(ckpt_D_path)
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            name = k[7:] if "module." in k else k # remove `module.`nvidia
+            new_state_dict[name] = v
+        netD.load_state_dict(new_state_dict)
+        print("Load checkpoint completed.")
+        
 
     # parallel = True
     if parallel:
@@ -211,7 +259,11 @@ if __name__ == "__main__":
     parser.add_argument('--out_path', type=str, default='./outputs/tmp/apponly',
                         help='path to output files')
     parser.add_argument('--gpu_ids', type=str, required=True)
-    # parser.add_argument('--checkpoint', type=str, default='./outputs/tmp/app/model/G_10.pth',
+ 
+    parser.add_argument('--ckpt_from', type=str, default=None,
+                        help='checkpoint path containing both D and G')
+    parser.add_argument('--model_path', type=str, default=None,
+                        help='checkpoint path, only contains G')# parser.add_argument('--checkpoint', type=str, default='./outputs/tmp/app/model/G_10.pth',
     #                     help='path of checkpoint')
     args = parser.parse_args()
     main(args)
