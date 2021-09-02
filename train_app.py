@@ -31,7 +31,7 @@ def get_dataset(dataset, img_size):
                                      stuff_json='./datasets/coco/annotations/stuff_train2017.json',
                                      stuff_only=True, image_size=(img_size, img_size), left_right_flip=True)
     elif dataset == 'vg':
-        data = VgSceneGraphDataset(vocab_json='./datasets/vg/vocab.json', h5_path='./datasets/vg/train.h5',
+        data = VgSceneGraphDataset(vocab_json='./datasets/vg/vocab.json', h5_path='./datasets/vg/val.h5',
                                    image_dir='./datasets/vg/images/',
                                    image_size=(img_size, img_size), max_objects=30, left_right_flip=True)
     return data

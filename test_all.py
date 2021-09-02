@@ -28,10 +28,10 @@ def get_dataloader(dataset='coco', img_size=128, batch_size=1):
                                         stuff_json='./datasets/coco/annotations/stuff_val2017.json',
                                         stuff_only=True, image_size=(img_size, img_size), left_right_flip=False)
     elif dataset == 'vg':
-        with open("./datasets/vg/vocab.json", "r") as read_file:
-            vocab = json.load(read_file)
-        dataset = VgSceneGraphDataset(vocab=vocab,
-                                      h5_path='./datasets/vg/val.h5',
+        # with open("./datasets/vg/vocab.json", "r") as read_file:
+        #     vocab = json.load(read_file)
+        dataset = VgSceneGraphDataset(vocab_json="./datasets/vg/vocab.json",
+                                      h5_path='./datasets/vg/test.h5',
                                       image_dir='./datasets/vg/images/',
                                       image_size=(128, 128), left_right_flip=False, max_objects=30)
 
@@ -49,18 +49,20 @@ def main(args):
     num_o = 8 if args.dataset == 'coco' else 31
 
     dataloader = get_dataloader(args.dataset, args.image_size)
-
+    print(f"{args.dataset.title()} datasets with {len(dataloader)} samples has been created!")
     if args.image_size == 128:
+        # netG = ResnetGenerator128(
+        #     num_classes=num_classes, output_dim=3, use_trans_enc=args.use_trans_enc).cuda()
         netG = ResnetGenerator128(
-            num_classes=num_classes, output_dim=3, use_trans_enc=args.use_trans_enc).cuda()
+            num_classes=num_classes, output_dim=3).cuda()
     elif args.image_size == 256:
         netG = ResnetGenerator256(num_classes=num_classes, output_dim=3).cuda()
 
-    ckpt_path_list = glob.glob(os.path.join(args.model_root, 'model/*.pth'))
+    ckpt_path_list = glob.glob(os.path.join(args.model_root, 'model/G_*.pth'))
     print(ckpt_path_list)
 
     test_res = []
-    ckpt_path_list = natsort.natsorted(ckpt_path_list)[-15]
+    ckpt_path_list = natsort.natsorted(ckpt_path_list)[:-15:-1]
     sample_path_list = [os.path.join(args.model_root, 'samples_' + os.path.basename(
         p).split('.')[0].replace('_', '')) for p in ckpt_path_list]
     for idx, (ckpt_path, sample_path) in enumerate(zip(ckpt_path_list, sample_path_list)):
@@ -124,8 +126,10 @@ def test_ckpt(model_path, netG, sample_path, dataloader, num_o):
                 num_o=num_o, thres=thres)).float().cuda()
             z_im = torch.from_numpy(truncted_random(
                 num_o=1, thres=thres)).view(1, -1).float().cuda()
+            # fake_images = netG.forward(
+            #     z_obj, bbox, z_im, label.squeeze(dim=-1), src_mask=src_mask)
             fake_images = netG.forward(
-                z_obj, bbox, z_im, label.squeeze(dim=-1), src_mask=src_mask)
+                z_obj, bbox, z_im, label.squeeze(dim=-1))
 
             misc.imsave("{save_path}/images/sample{idx}_{s_i}.jpg".format(save_path=sample_path,
                         idx=idx, s_i=s_i), fake_images[0].cpu().detach().numpy().transpose(1, 2, 0)*0.5+0.5)
