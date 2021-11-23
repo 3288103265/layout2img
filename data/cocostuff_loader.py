@@ -205,6 +205,9 @@ class CocoSceneGraphDataset(Dataset):
             transform.append(imagenet_preprocess())
         self.transform = T.Compose(transform)
         self.image_size = image_size
+        self.randomAug = T.Compose(
+            [T.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5))]
+        )
 
     def total_objects(self):
         total_objs = 0
@@ -218,7 +221,8 @@ class CocoSceneGraphDataset(Dataset):
     def __len__(self):
         if self.max_samples is None:
             if self.left_right_flip:
-                return len(self.image_ids)*2
+                # return len(self.image_ids)*2
+                return len(self.image_ids)
             return len(self.image_ids)
         return min(len(self.image_ids), self.max_samples)
 
@@ -240,11 +244,11 @@ class CocoSceneGraphDataset(Dataset):
         - triples: LongTensor of shape (T, 3) where triples[t] = [i, p, j]
           means that (objs[i], p, objs[j]) is a triple.
         """
-        flip = False
-        # index = 1292
-        if index >= len(self.image_ids):
-            index = index - len(self.image_ids)
-            flip = True
+        # flip = False
+        # # index = 1292
+        # if index >= len(self.image_ids):
+        #     index = index - len(self.image_ids)
+        #     flip = True
         image_id = self.image_ids[index]
 
         filename = self.image_id_to_filename[image_id]
@@ -259,14 +263,17 @@ class CocoSceneGraphDataset(Dataset):
         
         with open(image_path, 'rb') as f:
             with PIL.Image.open(f) as image:
-                if flip:
-                    image = PIL.ImageOps.mirror(image)
+                # if flip:
+                # image_flip = PIL.ImageOps.mirror(image)
                 WW, HH = image.size
                 image = self.transform(image.convert('RGB'))
+                image_aug = self.randomAug()
+                # image_flip = self.transform(image_flip.convert('RGB'))
 
         objs, boxes, masks = [], [], []
         # obj_masks = []
         for object_data in self.image_id_to_objects[image_id]:
+            objs.append(object_data['category_id'])
             objs.append(object_data['category_id'])
             # print(self.vocab['object_idx_to_name'][object_data['category_id']])
             x, y, w, h = object_data['bbox']
@@ -274,9 +281,11 @@ class CocoSceneGraphDataset(Dataset):
             y0 = y / HH
             x1 = (w) / WW
             y1 = (h) / HH
-            if flip:
-                x0 = 1 - (x0 + x1)
+            # if flip:
+            # x0_f = 1 - (x0 + x1)
             boxes.append(np.array([x0, y0, x1, y1]))
+            boxes.append(np.array([x0, y0, x1, y1]))
+            # boxes.append(np.array([x0_f, y0, x1, y1]))
 
             # # This will give a numpy array of shape (HH, WW)
             # mask = seg_to_mask(object_data['segmentation'], WW, HH)
@@ -309,8 +318,10 @@ class CocoSceneGraphDataset(Dataset):
         # masks.append(torch.ones(self.mask_size, self.mask_size).long())
 
         # add 0 for number of objects
-        for _ in range(len(objs), self.max_objects_per_image):
+        for _ in range(len(objs)//2, self.max_objects_per_image):
             objs.append(self.vocab['object_name_to_idx']['__image__'])
+            objs.append(self.vocab['object_name_to_idx']['__image__'])
+            boxes.append(np.array([-0.6, -0.6, 0.5, 0.5]))
             boxes.append(np.array([-0.6, -0.6, 0.5, 0.5]))
             # masks.append(torch.zeros((self.image_size[0], self.image_size[1])).long())
             # obj_masks.append(torch.zeros((self.mask_size, self.mask_size)).long())

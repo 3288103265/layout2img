@@ -22,7 +22,7 @@ from model.sync_batchnorm import DataParallelWithCallback
 from utils.logger import setup_logger
 from tqdm import tqdm
 import glob
-from natsort import natsorted
+from natsort.natsort import natsorted
 
 
 def get_dataset(dataset, img_size):
