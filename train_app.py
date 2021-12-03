@@ -18,11 +18,12 @@ from data.cocostuff_loader import *
 from data.vg import *
 from model.resnet_generator_v2 import *
 from model.rcnn_discriminator_app import *
-from model.sync_batchnorm import DataParallelWithCallback
+# from model.sync_batchnorm import DataParallelWithCallback
 from utils.logger import setup_logger
 from tqdm import tqdm
 import glob
 from natsort.natsort import natsorted
+from torch.nn.parallel import DataParallel
 
 
 def get_dataset(dataset, img_size):
@@ -57,7 +58,7 @@ def main(args):
     print(f"{args.dataset.title()} datasets with {len(train_data)} samples has been created!")
 
     num_gpus = torch.cuda.device_count()
-    num_workers = 15
+    num_workers = 12
     if num_gpus > 1:
         parallel = True
         args.batch_size = args.batch_size * num_gpus
@@ -125,8 +126,8 @@ def main(args):
 
     # parallel = True
     if parallel:
-        netG = DataParallelWithCallback(netG)
-        netD = nn.DataParallel(netD)
+        netG = DataParallel(netG)
+        netD = DataParallel(netD)
 
     g_lr, d_lr = args.g_lr, args.d_lr
     gen_parameters = []
@@ -165,18 +166,22 @@ def main(args):
     l1_loss = nn.DataParallel(nn.L1Loss())
     contra_criterion = XT_Xent_loss(args.batch_size).cuda()
     
+    netG.train()
+    netD.train()
     for epoch in range(args.total_epoch):
-        netG.train()
-        netD.train()
+  
         print("Epoch {}/{}".format(epoch, args.total_epoch))
         for idx, data in enumerate(tqdm(dataloader)):
             real_images, label, bbox = data
+            real_images = torch.cat(real_images, dim=0)
+            label = torch.cat((label, label), dim=0)
+            bbox = torch.cat((bbox, bbox), dim=0)
             real_images, label, bbox = real_images.to(device), label.long().to(device).unsqueeze(-1), bbox.float()
 
             # update D network
             netD.zero_grad()
             real_images, label = real_images.to(device), label.long().to(device)
-            d_out_real, d_out_robj, d_out_robj_app, d_robj_feat = netD(real_images, bbox, label)
+            d_out_real, d_out_robj, d_out_robj_app, d_robj_feat, robj_label = netD(real_images, bbox, label)
             d_robj_feat = d_robj_feat.detach()
             d_loss_real = torch.nn.ReLU()(1.0 - d_out_real).mean()
             d_loss_robj = torch.nn.ReLU()(1.0 - d_out_robj).mean()
@@ -186,7 +191,7 @@ def main(args):
             # print(f"real object feat shape: {d_robj_feat.shape}")
             z = torch.randn(real_images.size(0), num_obj, z_dim).to(device)
             fake_images = netG(z, bbox, y=label.squeeze(dim=-1))
-            d_out_fake, d_out_fobj, d_out_fobj_app, _ = netD(fake_images.detach(), bbox, label)
+            d_out_fake, d_out_fobj, d_out_fobj_app, _, _ = netD(fake_images.detach(), bbox, label)
             # 真实图像不做对比损失，希望D提取特征按照原来的方式，不增加限制
             d_loss_fake = torch.nn.ReLU()(1.0 + d_out_fake).mean()
             d_loss_fobj = torch.nn.ReLU()(1.0 + d_out_fobj).mean()
@@ -199,14 +204,14 @@ def main(args):
             # update G network
             if (idx % 1) == 0:
                 netG.zero_grad()
-                g_out_fake, g_out_obj, g_out_obj_app, g_fobj_feat = netD(fake_images, bbox, label)
+                g_out_fake, g_out_obj, g_out_obj_app, g_fobj_feat,fobj_label = netD(fake_images, bbox, label)
                 g_loss_fake = - g_out_fake.mean()
                 g_loss_obj = - g_out_obj.mean()
                 g_loss_obj_app = - g_out_obj_app.mean()
 
                 pixel_loss = l1_loss(fake_images, real_images).mean()
                 feat_loss = vgg_loss(fake_images, real_images).mean()
-                contra_loss_fake = contra_criterion(g_fobj_feat, g_fobj_feat, d_robj_feat, d_robj_feat)
+                contra_loss_fake = contra_criterion(g_fobj_feat, d_robj_feat)
 
                 g_loss = g_loss_obj * lamb_obj + g_loss_fake * lamb_img + pixel_loss + feat_loss + lamb_app * g_loss_obj_app + lambda_contra * contra_loss_fake
                 g_loss.backward()
@@ -234,20 +239,23 @@ def main(args):
 
                 # logger.info("             pixel_loss: {:.4f}, feat_loss: {:.4f}".format(pixel_loss.item(), feat_loss.item()))
                 if writer is not None:
-                    writer.add_image("real images", make_grid(real_images.cpu().data * 0.5 + 0.5, nrow=4), epoch * len(dataloader) + idx + 1)
-                    writer.add_image("fake images", make_grid(fake_images.cpu().data * 0.5 + 0.5, nrow=4), epoch * len(dataloader) + idx + 1)
+                    writer.add_image("real images", make_grid(real_images[:32].cpu().data * 0.5 + 0.5, nrow=4), epoch * len(dataloader) + idx + 1)
+                    writer.add_image("fake images", make_grid(fake_images[:32].cpu().data * 0.5 + 0.5, nrow=4), epoch * len(dataloader) + idx + 1)
 
                     writer.add_scalars("D_loss_real", {"real": d_loss_real.item(),
                                                        "robj": d_loss_robj.item(),
                                                        "robj_app": d_loss_robj_app.item(),
-                                                       "loss": d_loss.item()})
+                                                       "loss": d_loss.item()}, global_step=epoch * len(dataloader) + idx + 1)
                     writer.add_scalars("D_loss_fake", {"fake": d_loss_fake.item(),
                                                        "fobj": d_loss_fobj.item(),
-                                                       "fobj_app": d_loss_fobj_app.item()})
+                                                       "fobj_app": d_loss_fobj_app.item()}, global_step=epoch * len(dataloader) + idx + 1)
                     writer.add_scalars("G_loss", {"fake": g_loss_fake.item(),
                                                   "obj_app": g_loss_obj_app.item(),
                                                   "obj": g_loss_obj.item(),
-                                                  "loss": g_loss.item()})
+                                                  "loss": g_loss.item()},
+                                       global_step=epoch * len(dataloader) + idx + 1)
+                    writer.add_scalar("contra", contra_loss_fake.item(
+                    ), epoch * len(dataloader) + idx + 1)
 
         # save model
         if (epoch + 1) % 5 == 0:

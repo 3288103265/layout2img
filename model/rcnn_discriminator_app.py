@@ -107,6 +107,7 @@ class ResnetDiscriminator128_app(nn.Module):
         self.app_conv = ResBlock(ch * 8, ch * 8, downsample=False)
         self.l_y_app = nn.utils.spectral_norm(nn.Embedding(num_classes, ch * 8))
         self.app = nn.utils.spectral_norm(nn.Linear(ch * 16, 1))
+        self.out_pool = nn.AdaptiveAvgPool1d(ch * 4)  # 256
 
     def forward(self, x, y=None, bbox=None):
         b = bbox.size(0)
@@ -161,9 +162,13 @@ class ResnetDiscriminator128_app(nn.Module):
         obj_feat = self.activation(obj_feat)
         obj_feat = torch.sum(obj_feat, dim=(2, 3))
         # print(obj_feat.shape)
+      
         out_obj = self.l_obj(obj_feat)
-
+       
         out_obj = out_obj + torch.sum(self.l_y(y).view(b, -1) * obj_feat.view(b, -1), dim=1, keepdim=True)
+        ## obj feat pool: 1024->256:
+        obj_feat = self.out_pool(obj_feat.unsqueeze(0)).squeeze()
+
 
         return out_im, out_obj, out_app, obj_feat
 
@@ -415,10 +420,9 @@ class CombineDiscriminator128_app(nn.Module):
         idx = (label != 0).nonzero().view(-1)
         bbox = bbox[idx]
         label = label[idx]
-        # print(bbox.shape)
-        # print(label.shape)
+
         d_out_img, d_out_obj, out_app, obj_feat = self.obD(images, label, bbox)
-        return d_out_img, d_out_obj, out_app, obj_feat
+        return d_out_img, d_out_obj, out_app, obj_feat, label
 
 
 class CombineDiscriminator64(nn.Module):

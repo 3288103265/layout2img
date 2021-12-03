@@ -1,0 +1,1 @@
+python train_app.py --batch_size 8 --gpu_ids 6 --out_path outputs/train_app_debug

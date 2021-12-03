@@ -1,4 +1,7 @@
-import json, os, random, math
+import json
+import os
+import random
+import math
 from collections import defaultdict
 
 import torch
@@ -14,6 +17,8 @@ from random import shuffle
 # import io
 from skimage import io, img_as_ubyte
 
+from data.gaussblur import GaussianBlur
+
 
 class CocoSceneGraphDataset(Dataset):
     def __init__(self, image_dir, instances_json, stuff_json=None,
@@ -25,7 +30,7 @@ class CocoSceneGraphDataset(Dataset):
         """
         A PyTorch Dataset for loading Coco and Coco-Stuff annotations and converting
         them to scene graphs on the fly.
-    
+
         Inputs:
         - image_dir: Path to a directory where images are held
         - instances_json: Path to a JSON file giving COCO annotations
@@ -200,14 +205,17 @@ class CocoSceneGraphDataset(Dataset):
 
     def set_image_size(self, image_size):
         print('called set_image_size', image_size)
-        transform = [Resize(image_size), T.ToTensor()]
+        self.image_size = image_size
+        s = 1
+        color_jitter = T.ColorJitter(0.8 * s, 0.8 * s, 0.8 * s, 0.2 * s)
+        transform = [Resize(image_size),
+                     T.RandomApply([color_jitter], p=0.8),
+                     T.RandomGrayscale(p=0.2),
+                     GaussianBlur(kernel_size=int(0.1 * image_size[0])),
+                     T.ToTensor()]
         if self.normalize_images:
             transform.append(imagenet_preprocess())
         self.transform = T.Compose(transform)
-        self.image_size = image_size
-        self.randomAug = T.Compose(
-            [T.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5))]
-        )
 
     def total_objects(self):
         total_objs = 0
@@ -234,7 +242,7 @@ class CocoSceneGraphDataset(Dataset):
         object annotations, each of which will have both a bounding box and a
         segmentation mask of shape (M, M). There will be T triples in the scene
         graph.
-    
+
         Returns a tuple of:
         - image: FloatTensor of shape (C, H, W)
         - objs: LongTensor of shape (O,)        - boxes: FloatTensor of shape (O, 4) giving boxes for objects in
@@ -253,27 +261,29 @@ class CocoSceneGraphDataset(Dataset):
 
         filename = self.image_id_to_filename[image_id]
         image_path = os.path.join(self.image_dir, filename)
-        
+
         # save_path = "outputs/coco128"
         # file_path = os.path.join(
         #     "datasets/coco/val2017", '{}'.format(filename))
         # img = io.imread(file_path)
         # resize_img = imresize(img, (128, 128))
         # io.imsave(os.path.join(save_path, "{}.png".format(filename.split(".")[0])), img_as_ubyte(resize_img))
-        
+
         with open(image_path, 'rb') as f:
             with PIL.Image.open(f) as image:
                 # if flip:
                 # image_flip = PIL.ImageOps.mirror(image)
                 WW, HH = image.size
-                image = self.transform(image.convert('RGB'))
-                image_aug = self.randomAug()
+                image = image.convert("RGB")
+                image1 = self.transform(image.convert("RGB"))
+                image2 = self.transform(image.convert("RGB"))
+                image = (image1, image2)
+                # image_aug = self.randomAug()
                 # image_flip = self.transform(image_flip.convert('RGB'))
 
         objs, boxes, masks = [], [], []
         # obj_masks = []
         for object_data in self.image_id_to_objects[image_id]:
-            objs.append(object_data['category_id'])
             objs.append(object_data['category_id'])
             # print(self.vocab['object_idx_to_name'][object_data['category_id']])
             x, y, w, h = object_data['bbox']
@@ -283,7 +293,6 @@ class CocoSceneGraphDataset(Dataset):
             y1 = (h) / HH
             # if flip:
             # x0_f = 1 - (x0 + x1)
-            boxes.append(np.array([x0, y0, x1, y1]))
             boxes.append(np.array([x0, y0, x1, y1]))
             # boxes.append(np.array([x0_f, y0, x1, y1]))
 
@@ -318,10 +327,8 @@ class CocoSceneGraphDataset(Dataset):
         # masks.append(torch.ones(self.mask_size, self.mask_size).long())
 
         # add 0 for number of objects
-        for _ in range(len(objs)//2, self.max_objects_per_image):
+        for _ in range(len(objs), self.max_objects_per_image):
             objs.append(self.vocab['object_name_to_idx']['__image__'])
-            objs.append(self.vocab['object_name_to_idx']['__image__'])
-            boxes.append(np.array([-0.6, -0.6, 0.5, 0.5]))
             boxes.append(np.array([-0.6, -0.6, 0.5, 0.5]))
             # masks.append(torch.zeros((self.image_size[0], self.image_size[1])).long())
             # obj_masks.append(torch.zeros((self.mask_size, self.mask_size)).long())
@@ -399,17 +406,19 @@ class CocoSceneGraphDataset(Dataset):
         """
 
         # triples = torch.LongTensor(triples)
-        return image, objs, boxes## , b_map #, None # obj_masks #, obj_masks # , b_map # masks # , triples
+        # , b_map #, None # obj_masks #, obj_masks # , b_map # masks # , triples
+        return image, objs, boxes
 
     def get_bbox_map_p(self, bbox):
         mapping = np.zeros((len(bbox), self.image_size[0], self.image_size[0]))
         for idx in range(self.max_objects_per_image):
             if min(bbox[idx]) < 0:
                 continue
-            line_space = np.linspace(0, self.image_size[0]-1, num=self.image_size[0])
+            line_space = np.linspace(
+                0, self.image_size[0]-1, num=self.image_size[0])
             xv, yv = np.meshgrid(line_space, line_space)
             mapping[idx][(xv < int((bbox[idx][0] + bbox[idx][2]) * self.image_size[0])) * (xv > int(bbox[idx][0] * self.image_size[0])) *
-                    (yv < int((bbox[idx][1] + bbox[idx][3]) * self.image_size[0])) * (yv > int(bbox[idx][1] * self.image_size[0]))] = 1
+                         (yv < int((bbox[idx][1] + bbox[idx][3]) * self.image_size[0])) * (yv > int(bbox[idx][1] * self.image_size[0]))] = 1
         return mapping
 
 
@@ -431,7 +440,7 @@ def coco_collate_fn(batch):
     """
     Collate function to be used when wrapping CocoSceneGraphDataset in a
     DataLoader. Returns a tuple of the following:
-  
+
     - imgs: FloatTensor of shape (N, C, H, W)
     - objs: LongTensor of shape (O,) giving object categories
     - boxes: FloatTensor of shape (O, 4)
@@ -500,6 +509,7 @@ def imagenet_deprocess(rescale_image=True):
         transforms.append(rescale)
     return T.Compose(transforms)
 
+
 def imagenet_deprocess_orig(imgs, rescale=True):
     deprocess_fn = imagenet_deprocess(rescale_image=rescale)
     imgs = imgs.cpu().clone()
@@ -508,7 +518,7 @@ def imagenet_deprocess_orig(imgs, rescale=True):
         img_de = deprocess_fn(imgs[i])[None]
         img_de = img_de.mul(255).clamp(0, 255).byte()
         imgs_de.append(img_de)
-    
+
     imgs_de = torch.cat(imgs_de, dim=0)
     return imgs_de
 
@@ -517,7 +527,7 @@ def imagenet_deprocess_batch(imgs, rescale=True):
     """
     Input:
     - imgs: FloatTensor of shape (N, C, H, W) giving preprocessed images
-    
+
     Output:
     - imgs_de: ByteTensor of shape (N, C, H, W) giving deprocessed images
     in the range [0, 255]
@@ -538,8 +548,8 @@ def imagenet_deprocess_batch(imgs, rescale=True):
 class Resize(object):
     def __init__(self, size, interp=PIL.Image.BILINEAR):
         if isinstance(size, tuple):
-              H, W = size
-              self.size = (W, H)
+            H, W = size
+            self.size = (W, H)
         else:
             self.size = (size, size)
         self.interp = interp
@@ -582,5 +592,3 @@ def split_graph_batch(triples, obj_data, obj_to_img, triple_to_img):
         obj_offset += o_idxs.size(0)
 
         return triples_out, obj_data_out
-
-

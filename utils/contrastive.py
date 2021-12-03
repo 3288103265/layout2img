@@ -340,25 +340,20 @@ class XT_Xent_loss(torch.nn.Module):
         super(XT_Xent_loss, self).__init__()
         self.softmax = torch.nn.Softmax(dim=-1)
         # self.mask_samples_from_same_repr = self._get_correlated_mask().type(torch.bool)
-        self.similarity_function = self._get_similarity_function(
+        self.similarity_fn = self._get_similarity_function(
             use_cosine_similarity)
         self.criterion = torch.nn.CrossEntropyLoss(reduction="sum")
 
     def _get_similarity_function(self, use_cosine_similarity):
         if use_cosine_similarity:
-            self._cosine_similarity = torch.nn.CosineSimilarity(dim=-1)
             return self._cosine_simililarity
         else:
             return self._dot_simililarity
 
     def _get_correlated_mask(self, num_o):
-        diag = np.eye(2 * num_o)
-        l1 = np.eye((2 * num_o), 2 *
-                    num_o, k=-num_o)
-        l2 = np.eye((2 * num_o), 2 *
-                    num_o, k=num_o)
-        mask = torch.from_numpy((diag + l1 + l2))
-        mask = (1 - mask).type(torch.bool)
+        mask = torch.cat([torch.arange(num_o)
+                           for i in range(2)], dim=0)
+        mask = (mask.unsqueeze(0) == mask.unsqueeze(1))
         return mask
 
     @staticmethod
@@ -369,43 +364,43 @@ class XT_Xent_loss(torch.nn.Module):
         # v shape: (N, 2N)
         return v
 
-    def _cosine_simililarity(self, x, y):
-        # x shape: (N, 1, C)
-        # y shape: (1, 2N, C)
-        # v shape: (N, 2N)
-        v = self._cosine_similarity(x.unsqueeze(1), y.unsqueeze(0))
+    @staticmethod
+    def _cosine_simililarity(x):
+        x = F.normalize(x, dim=1)
+        v = torch.mm(x, x.T)# better performance
         return v
 
-    def forward(self, zis, zjs, zis_gt, zjs_gt):
-        representations = torch.cat([zjs, zis], dim=0)
-        repr_gt = torch.cat([zjs_gt, zis_gt], dim=0)
-        similarity_matrix = self.similarity_function(
-            representations, representations)
-        similarity_matrix_gt = self.similarity_function(
-            repr_gt, repr_gt
-        )
-        # print(similarity_matrix_gt)
+    def forward(self, feats, feats_gt):
+        similarity_matrix = self.similarity_fn(feats)
+        similarity_matrix_gt = self.similarity_fn(feats_gt)
 
-        num_o = zis.shape[0]
-        # filter out the scores from the positive samples
-        l_pos = torch.diag(similarity_matrix, num_o)
-        l_pos_t = torch.diag(similarity_matrix_gt, num_o)
-        r_pos = torch.diag(similarity_matrix, -num_o)
-        r_pos_t = torch.diag(similarity_matrix_gt, -num_o)
-        positives = torch.cat([l_pos, r_pos]).view(2 * num_o, 1)
-        positives_t = torch.cat([l_pos_t, r_pos_t]).view(2 * num_o, 1)
-        negatives = similarity_matrix[self._get_correlated_mask(num_o).type(torch.bool)].view(
-            2 * num_o, -1)
-        negatives_t = similarity_matrix_gt[self._get_correlated_mask(num_o).type(torch.bool)].view(
-            2 * num_o, -1
-        )
+        num_o = feats.shape[0]//2
+        corr_mask = self._get_correlated_mask(num_o).to(feats.device)
+        
+        # discard the main diagonal from both: labels and similarities matrix
+        mask = torch.eye(corr_mask.shape[0], dtype=torch.bool, device=feats.device)
+        corr_mask = corr_mask[~mask].view(corr_mask.shape[0], -1)
+        similarity_matrix = similarity_matrix[~mask].view(
+            similarity_matrix.shape[0], -1)
+        similarity_matrix_gt = similarity_matrix_gt[~mask].view(
+            similarity_matrix_gt.shape[0], -1)
+        
+        # select and combine multiple positives
+        positives = similarity_matrix[corr_mask].view(corr_mask.shape[0], -1)
+        positives_gt = similarity_matrix_gt[corr_mask].view(corr_mask.shape[0], -1)
 
+        # select only the negatives the negatives
+        negatives = similarity_matrix[~corr_mask.bool()].view(
+            similarity_matrix.shape[0], -1)
+        negatives_gt = similarity_matrix_gt[~corr_mask.bool()].view(
+            similarity_matrix_gt.shape[0], -1)
+        
+    
         logits = torch.cat((positives, negatives), dim=1)
-        temperature = torch.cat((positives_t, negatives_t), dim=1)
-        assert logits.shape == temperature.shape
+        temperature = torch.cat((positives_gt, negatives_gt), dim=1)
         logits /= temperature
 
-        labels = torch.zeros(2 * num_o, device=zis.device).long()
+        labels = torch.zeros(2 * num_o, dtype=torch.long, device=feats.device)
         loss = self.criterion(logits, labels)
         return loss / (2 * num_o)
 

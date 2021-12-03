@@ -1,0 +1,1 @@
+python train_app.py --batch_size 32 --out_path outputs/train_app_2 --gpu_ids 6,7

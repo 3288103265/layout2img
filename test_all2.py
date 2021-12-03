@@ -129,9 +129,9 @@ def test_ckpt(model_path, netG, sample_path, dataloader, num_o, save_gt=False):
     sample_num = 5
     for idx, data in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
         real_images, label, bbox = data
-        batch_size = real_images.shape[0]
+        batch_size = real_images[0].shape[0]
  
-        real_images, label = real_images.cuda(), label.long().unsqueeze(-1).cuda()
+        real_images, label = real_images[0].cuda(), label.long().unsqueeze(-1).cuda()
         bbox = bbox.float().cuda()
         
         for s_i in range(sample_num):  # sample_num=5
