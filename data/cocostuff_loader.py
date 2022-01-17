@@ -234,7 +234,7 @@ class CocoSceneGraphDataset(Dataset):
         Returns a tuple of:
         - image: FloatTensor of shape (C, H, W)
         - objs: LongTensor of shape (O,)        - boxes: FloatTensor of shape (O, 4) giving boxes for objects in
-          (x0, y0, x1, y1) format, in a [0, 1] coordinate system
+          (x0, y0, w, h) format, in a [0, 1] coordinate system
         - masks: LongTensor of shape (O, M, M) giving segmentation masks for
           objects, where 0 is background and 1 is object.
         - triples: LongTensor of shape (T, 3) where triples[t] = [i, p, j]
@@ -272,11 +272,11 @@ class CocoSceneGraphDataset(Dataset):
             x, y, w, h = object_data['bbox']
             x0 = x / WW
             y0 = y / HH
-            x1 = (w) / WW
-            y1 = (h) / HH
+            w = (w) / WW
+            h = (h) / HH
             if flip:
-                x0 = 1 - (x0 + x1)
-            boxes.append(np.array([x0, y0, x1, y1]))
+                x0 = 1 - (x0 + w)
+            boxes.append(np.array([x0, y0, w, h]))
 
             # # This will give a numpy array of shape (HH, WW)
             # mask = seg_to_mask(object_data['segmentation'], WW, HH)

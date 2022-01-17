@@ -85,7 +85,7 @@ class MaskRegressNetv2(nn.Module):
     def forward(self, obj_feat, bbox):
         """
         :param obj_feat: (b*num_o, feat_dim)
-        :param bbox: (b, num_o, 4)
+        :param bbox: (b, num_o, 4)[x0,y0,w,h]
         :return: bbmap: (b, num_o, map_size, map_size)
         """
         b, num_o, _ = bbox.size()

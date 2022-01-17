@@ -45,6 +45,9 @@ class ResnetGenerator128(nn.Module):
         self.init_parameter()
 
     def forward(self, z, bbox, z_im=None, y=None):
+        """
+        bbox:[x0,y0,w,h]
+        """
 
         b, o = z.size(0), z.size(1)
         label_embedding = self.label_embedding(y)

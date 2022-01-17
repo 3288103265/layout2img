@@ -138,7 +138,7 @@ def masks_to_layout(boxes, masks, H, W=None):
     """
     Inputs:
         - boxes: Tensor of shape (b, num_o, 4) giving bounding boxes in the format
-            [x0, y0, x1, y1] in the [0, 1] coordinate space
+            [x0, y0, w, h] in the [0, 1] coordinate space
         - masks: Tensor of shape (b, num_o, M, M) giving binary masks for each object
         - H, W: Size of the output image.
     Returns:
@@ -161,7 +161,7 @@ def masks_to_layout(boxes, masks, H, W=None):
 def _boxes_to_grid(boxes, H, W):
     """
     Input:
-    - boxes: FloatTensor of shape (O, 4) giving boxes in the [x0, y0, x1, y1]
+    - boxes: FloatTensor of shape (O, 4) giving boxes in the [x0, y0, w, h]
       format in the [0, 1] coordinate space
     - H, W: Scalars giving size of output
     Returns:
