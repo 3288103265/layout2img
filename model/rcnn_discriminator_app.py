@@ -405,9 +405,9 @@ class CombineDiscriminator128_app(nn.Module):
       
         # bbox[:, :, 2] = bbox[:, :, 2] + bbox[:, :, 0] # [x1,y1,w,h]->[x1,y1,x2,y2]
         # bbox[:, :, 3] = bbox[:, :, 3] + bbox[:, :, 1]
-        bbox = bbox * images.size(2)# previous bug, 这里重新创建了一个bbox，之前前面的操作是修改了bbox的，现在调换了位置，应该就行了。
-        bbox[:, :, 2] = bbox[:, :, 2] + bbox[:, :, 0] # [x1,y1,w,h]->[x1,y1,x2,y2]
-        bbox[:, :, 3] = bbox[:, :, 3] + bbox[:, :, 1]
+        bbox = bbox * images.size(2)# previous bug1, 这里重新创建了一个bbox，之前前面的操作是修改了bbox的，现在调换了位置，应该就行了。
+        # bbox[:, :, 2] = bbox[:, :, 2] + bbox[:, :, 0] # [x1,y1,w,h]->[x1,y1,x2,y2]
+        # bbox[:, :, 3] = bbox[:, :, 3] + bbox[:, :, 1] # previous bug2, 原本就是[x1,y1,x2,y2]，不需要转换。bug
         bbox = torch.cat((idx, bbox.float()), dim=2)
         bbox = bbox.view(-1, 5)
         label = label.view(-1)
