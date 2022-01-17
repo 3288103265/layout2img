@@ -3,22 +3,25 @@ import os
 import pickle
 import time
 import datetime
+from typing import OrderedDict
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import make_grid
 
-from utils.util import *
 from data.cocostuff_loader import *
+from utils.util import *
 from data.vg import *
 from model.resnet_generator_v2 import *
 from model.rcnn_discriminator_app import *
 from model.sync_batchnorm import DataParallelWithCallback
 from utils.logger import setup_logger
 from tqdm import tqdm
+import glob
+from natsort import natsorted
 
 
 def get_dataset(dataset, img_size):
@@ -37,7 +40,7 @@ def get_dataset(dataset, img_size):
 def main(args):
     # parameters
     img_size = 128
-    z_dim = 128
+    z_dim = 64
     lamb_obj = 1.0
     lamb_app = 1.0
     lamb_img = 0.1
@@ -70,6 +73,51 @@ def main(args):
     netG = ResnetGenerator128(num_classes=num_classes, output_dim=3).to(device)
     netD = CombineDiscriminator128_app(num_classes=num_classes).to(device)
 
+    assert not (bool(args.model_path) == bool(args.ckpt_from) == 1)# only choose one or both none不能同时都是1
+    # load ckpt
+    if args.model_path:
+        if not os.path.isfile(args.model_path):
+            state_dict = OrderedDict()
+        else:
+            state_dict = torch.load(args.model_path)
+
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            name = k[7:]  # remove `module.`nvidia
+            new_state_dict[name] = v
+
+        model_dict = netG.state_dict()
+        pretrained_dict = {k: v for k,
+                        v in new_state_dict.items() if k in model_dict}
+        model_dict.update(pretrained_dict)
+        netG.load_state_dict(model_dict)
+        print("Load pretrained G completed.")
+
+    # restore from ckpt.
+    if args.ckpt_from:
+        ckpt_D_path = natsorted(glob.glob(args.ckpt_from + "/model/D*.pth"))[-1]
+        ckpt_G_path = natsorted(glob.glob(args.ckpt_from + "/model/G*.pth"))[-1]
+        print("Resoring training from:")
+        print(ckpt_D_path)
+        print(ckpt_D_path)
+        assert os.path.isfile(ckpt_D_path) and os.path.isfile(ckpt_G_path)
+        
+        state_dict = torch.load(ckpt_G_path)
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            name = k[7:]  # remove `module.`nvidia
+            new_state_dict[name] = v
+        netG.load_state_dict(new_state_dict)
+        
+        state_dict = torch.load(ckpt_D_path)
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            name = k[7:]  # remove `module.`nvidia
+            new_state_dict[name] = v
+        netD.load_state_dict(new_state_dict)
+        print("Load checkpoint completed.")
+        
+      
     # if os.path.isfile(args.checkpoint):
     #     state_dict = torch.load(args.checkpoint)
 
@@ -119,19 +167,19 @@ def main(args):
         print("Epoch {}/{}".format(epoch, args.total_epoch))
         for idx, data in enumerate(tqdm(dataloader)):
             real_images, label, bbox = data
-            real_images, label, bbox = real_images.to(device), label.long().to(device).unsqueeze(-1), bbox.float()
+            real_images, label, bbox = real_images.to(device), label.long().to(device).unsqueeze(-1), bbox.float().to(device)
 
             # update D network
             netD.zero_grad()
+
             real_images, label = real_images.to(device), label.long().to(device)
             d_out_real, d_out_robj, d_out_robj_app = netD(real_images, bbox, label)
             d_loss_real = torch.nn.ReLU()(1.0 - d_out_real).mean()
             d_loss_robj = torch.nn.ReLU()(1.0 - d_out_robj).mean()
             d_loss_robj_app = torch.nn.ReLU()(1.0 - d_out_robj_app).mean()
-            # print(d_loss_robj)
-            # print(d_loss_robj_app)
 
             z = torch.randn(real_images.size(0), num_obj, z_dim).to(device)
+
             fake_images = netG(z, bbox, y=label.squeeze(dim=-1))
             d_out_fake, d_out_fobj, d_out_fobj_app = netD(fake_images.detach(), bbox, label)
             d_loss_fake = torch.nn.ReLU()(1.0 + d_out_fake).mean()
@@ -215,6 +263,10 @@ if __name__ == "__main__":
     parser.add_argument('--out_path', type=str, default='./outputs/tmp/apponly',
                         help='path to output files')
     parser.add_argument('--gpu_ids', type=str, required=True)
+    parser.add_argument('--ckpt_from', type=str, default=None,
+                        help='checkpoint path containing both D and G')
+    parser.add_argument('--model_path', type=str, default=None,
+                        help='checkpoint path, only contains G')
     # parser.add_argument('--checkpoint', type=str, default='./outputs/tmp/app/model/G_10.pth',
     #                     help='path of checkpoint')
     args = parser.parse_args()

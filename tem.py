@@ -13,7 +13,7 @@ class ResnetGenerator128(nn.Module):
     def __init__(self, ch=64, z_dim=64, num_classes=10, output_dim=3):
         super(ResnetGenerator128, self).__init__()
         self.num_classes = num_classes
-        self.z_dim = z_dim
+
         self.label_embedding = nn.Embedding(num_classes, 180)
         self.pos_emb = nn.utils.spectral_norm(nn.Linear(4, 64))
 
@@ -45,7 +45,6 @@ class ResnetGenerator128(nn.Module):
         self.init_parameter()
 
     def forward(self, z, bbox, z_im=None, y=None):
-
         b, o = z.size(0), z.size(1)
         label_embedding = self.label_embedding(y)
         pos_embedding = self.pos_emb(bbox)
@@ -59,10 +58,12 @@ class ResnetGenerator128(nn.Module):
 
         w = self.mapping(latent_vector.view(b * o, -1))
         # preprocess bbox
+        print(w.shape)
+        print(bbox.shape)
         bmask = self.mask_regress(w, bbox)
 
         if z_im is None:
-            z_im = torch.randn((b, self.z_dim), device=z.device)
+            z_im = torch.randn((b, 128), device=z.device)
 
         bbox_mask_ = bbox_mask(z, bbox, 64, 64)
 

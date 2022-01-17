@@ -398,16 +398,16 @@ class CombineDiscriminator128_app(nn.Module):
         super(CombineDiscriminator128_app, self).__init__()
         self.obD = ResnetDiscriminator128_app(num_classes=num_classes, input_dim=3)
 
-    def forward(self, images, bbox, label, mask=None):
+    def forward(self, images, bbox, label, mask=None):## inplace-operation``
         idx = torch.arange(start=0, end=images.size(0),
                            device=images.device).view(images.size(0),
                                                       1, 1).expand(-1, bbox.size(1), -1).float()
-        #idx = idx.cuda()
-        # print(bbox)
-        bbox = bbox.cuda()
-        bbox[:, :, 2] = bbox[:, :, 2] + bbox[:, :, 0]
+      
+        # bbox[:, :, 2] = bbox[:, :, 2] + bbox[:, :, 0] # [x1,y1,w,h]->[x1,y1,x2,y2]
+        # bbox[:, :, 3] = bbox[:, :, 3] + bbox[:, :, 1]
+        bbox = bbox * images.size(2)# previous bug, 这里重新创建了一个bbox，之前前面的操作是修改了bbox的，现在调换了位置，应该就行了。
+        bbox[:, :, 2] = bbox[:, :, 2] + bbox[:, :, 0] # [x1,y1,w,h]->[x1,y1,x2,y2]
         bbox[:, :, 3] = bbox[:, :, 3] + bbox[:, :, 1]
-        bbox = bbox * images.size(2)
         bbox = torch.cat((idx, bbox.float()), dim=2)
         bbox = bbox.view(-1, 5)
         label = label.view(-1)
