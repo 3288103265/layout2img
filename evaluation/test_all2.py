@@ -2,13 +2,9 @@
 import argparse
 from collections import OrderedDict
 
-from torch._C import device
 from utils.fid import calculate_fid_given_paths
-import numpy as np
 from utils import misc
-import imageio
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from data.cocostuff_loader import *
 from data.vg import *
@@ -20,6 +16,7 @@ import glob
 import natsort
 import warnings
 warnings.filterwarnings("ignore")
+
 
 GT_IMAGES_PATH = os.path.expanduser("~/datasets/coco/val_3097")
 print(GT_IMAGES_PATH)

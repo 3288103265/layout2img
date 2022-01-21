@@ -233,7 +233,8 @@ class CocoSceneGraphDataset(Dataset):
     
         Returns a tuple of:
         - image: FloatTensor of shape (C, H, W)
-        - objs: LongTensor of shape (O,)        - boxes: FloatTensor of shape (O, 4) giving boxes for objects in
+        - objs: LongTensor of shape (O,)        
+        - boxes: FloatTensor of shape (O, 4) giving boxes for objects in
           (x0, y0, w, h) format, in a [0, 1] coordinate system
         - masks: LongTensor of shape (O, M, M) giving segmentation masks for
           objects, where 0 is background and 1 is object.
