@@ -1,0 +1,6 @@
+# model config
+G_arch = "ResnetGenerator"
+G_type = ""
+D_arch = "CombineDiscriminator"
+D_type = "app"
+z_dim = 128

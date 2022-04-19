@@ -32,9 +32,12 @@ roi_layers.egg-info/
 
 .ftpignore
 
-*.json
-
 *.h5
 
 *.pth
 datasets
+
+evaluation/yolo_score/darknet-master
+*.png
+val2017
+outputs

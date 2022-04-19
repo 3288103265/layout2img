@@ -36,13 +36,19 @@ def crop_resize(image, bbox, imsize=64, cropsize=28, label=None):
     return torch.cat(crop_images, dim=0)
 
 
-def truncted_random(num_o=8, thres=1.0):
-    z = np.ones((1, num_o, 128)) * 100
-    for i in range(num_o):
-        for j in range(128):
-            while z[0, i, j] > thres or z[0, i, j] < - thres:
-                z[0, i, j] = np.random.normal()
-    return z
+# def truncted_random(num_o=8, thres=1.0):
+#     z = np.ones((1, num_o, 128)) * 100
+#     for i in range(num_o):
+#         for j in range(128):
+#             while z[0, i, j] > thres or z[0, i, j] < - thres:
+#                 z[0, i, j] = np.random.normal()
+#     return z
+
+def truncted_random(num_o=8, thres=1.0, dim=128):
+    z = torch.randn(1, num_o, dim)
+    truncation_flag = (z.abs()>thres).float()
+    return truncation_flag * torch.randn(1, num_o, dim) + (1.-truncation_flag) * z
+
 
 
 # VGG Features matching

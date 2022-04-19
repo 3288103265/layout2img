@@ -1,0 +1,7 @@
+
+
+G_arch = "ResnetGenerator"
+G_type = "base2"
+D_arch = "CombineDiscriminator128"
+D_type = "app"
+z_dim = 64

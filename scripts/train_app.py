@@ -46,7 +46,13 @@ def main(args):
     lamb_img = 0.1
     num_classes = 184 if args.dataset == 'coco' else 179
     num_obj = 8 if args.dataset == 'coco' else 31
-
+    
+    # config
+    G_arch = "ResnetGenerator"
+    G_type = "base"
+    D_arch = "CombineDiscriminator128"
+    D_type = "app"
+    
     # args.out_path = os.path.join(args.out_path, args.dataset + '_1gpu', str(img_size))
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_ids
 
@@ -70,9 +76,10 @@ def main(args):
 
     # Load model
     device = torch.device('cuda')
-    netG = ResnetGenerator128(num_classes=num_classes, output_dim=3).to(device)
-    netD = CombineDiscriminator128_app(num_classes=num_classes).to(device)
+    netG = globals()[f'{G_arch}{img_size}_{G_type}'](num_classes=num_classes, output_dim=3).to(device)
+    netD = globals()[f'{D_arch}{img_size}_{D_type}'](num_classes=num_classes).to(device)
 
+   
     assert not (bool(args.model_path) == bool(args.ckpt_from) == 1)# only choose one or both none不能同时都是1
     # load ckpt
     if args.model_path:

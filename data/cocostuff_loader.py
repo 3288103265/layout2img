@@ -200,7 +200,7 @@ class CocoSceneGraphDataset(Dataset):
 
     def set_image_size(self, image_size):
         print('called set_image_size', image_size)
-        transform = [Resize(image_size), T.ToTensor()]
+        transform = [Resize(image_size), T.ToTensor()] if all(x>0 for x in image_size) else [T.ToTensor()]
         if self.normalize_images:
             transform.append(imagenet_preprocess())
         self.transform = T.Compose(transform)

@@ -131,7 +131,7 @@ def run_yolo(args):
             with torch.no_grad():
                 predictions = model(imgs, CUDA)
                 predictions = non_max_suppression(predictions, confidence, nms_thresh)
-
+                # (x1, y1, x2, y2, object_conf, class_score, class_pred)
             for img, preds in zip(filenames, predictions):
                 img_preds_name = []
                 img_preds_id = []
@@ -161,7 +161,7 @@ def calc_recall(predicted_bbox, label):
     correctly_recognized = 0
     num_images_total = len(predicted_bbox.keys())
     for key in predicted_bbox.keys():
-        predictions = predicted_bbox[key]
+        predictions = predicted_bbox[key]#[cls_name, cls_id, bbox]
         for recognized_label in predictions[1]:
             if recognized_label == label:
                 correctly_recognized += 1
@@ -320,7 +320,7 @@ def calc_soa(args):
     # go through yolo detection and check how often it detected the desired object (based on the label)
     for yolo_file in yolo_detected_files:
         yolo = load_file(yolo_file)
-        label = get_label(yolo_file)
+        label = get_label(yolo_file)# a int
         acc, correctly_recog, num_imgs_total = calc_recall(yolo, label)
 
         results_dict[label] = {}

@@ -1,67 +1,119 @@
 ## input label and bbox, output images
+## Drespert
 import argparse
+import os
+import warnings
 from collections import OrderedDict
 
-from utils.fid import calculate_fid_given_paths
-from utils import misc
+import numpy as np
 import torch
-import torch.nn.functional as F
+import tqdm
 from data.cocostuff_loader import *
 from data.vg import *
 from model.resnet_generator_v2 import *
+from utils import misc
 from utils.util import *
-import tqdm
-import os
-import glob
-import natsort
-import warnings
+
 warnings.filterwarnings("ignore")
 
+def load_json(json_path):
+    with open(json_path, 'r') as f:
+        conds = json.load(f)
+    return conds
 
-def generate(model，labels, bboxs, noise=None):# ResnetGenerator可以满足这个条件。
-    """
-    input:
-        bbox: (N * O * 4):[img1的bbox,..,]
-        objs: (N * O):[img1bbox的label,...]
-    output:
-        imgs:(NCHW)
-    """
-
-
-def sample_image(netG, bbox, objs, image_id=None, z=None, sample_num=5, max_obj=8, real_images=None):
+def load_model(model_path, num_classes, device):
+    netG = ResnetGenerator128_posi(num_classes=num_classes, output_dim=3).to(device)
     
+    state_dict = torch.load(model_path, map_location=device)
+    new_state_dict = OrderedDict()
+    for k, v in state_dict.items():
+        name = k[7:] if k.startswith('module.') else k # remove `module.`nvidia
+        new_state_dict[name] = v
+
+    model_dict = netG.state_dict()
+    pretrained_dict = {k: v for k,
+                       v in new_state_dict.items() if k in model_dict}
+    model_dict.update(pretrained_dict)
+    netG.load_state_dict(model_dict)
     
-    assert len(bbox) == len(objs) == len()
-    assert bbox.shape[1] <= max_obj
-    assert bbox.shape[2] == 4
+    return netG
 
 
-
-    batch_size = real_images.shape[0]
-    objs = objs.long().unsqueeze(-1)
-    bbox = bbox.float().cuda()
-
-    if real_images:
-        real_images = real_images.cuda()
+def sample_from_layout(netG, bbox, objs, z_dim, sample_num=5, max_obj=8): 
+    assert len(bbox) == len(objs)
+    assert len(bbox) <= max_obj
+    assert len(bbox[0]) == 4
+    
+    for _ in range(len(objs), max_obj): # padding
+        objs.append(0)
+        bbox.append(np.array([-0.6, -0.6, 0.5, 0.5]))
         
-    for s_i in range(sample_num):  # sample_num=5
-        z_obj = torch.randn(batch_size, num_o, 128, device=real_images.device)
+    device = netG.device
+
+    bbox = np.vstack(bbox)
+    bbox = torch.from_numpy(bbox, device=device)
+    objs = torch.LongTensor(objs, device=device)
     
-        z_im = torch.randn(batch_size, 128, device=real_images.device)
-        fake_images = netG.forward(
-            z_obj, bbox, z_im, label.squeeze(dim=-1))
+    # 将采样的个数作为第一个维度
+    bbox = bbox.repeat(sample_num, 1, 1)# sample_image * max_obj * 4 
+    objs = objs.repeat(sample_num, 1)# sample_image * max_obj 
+    z_obj = torch.randn(sample_num, max_obj, z_dim, device=device) # sample * max_obj* z_dim
+    z_im = torch.randn(sample_num, z_dim, device=device) # sample * z_dim
+    
+    fake_images = netG.forward(
+        z_obj, bbox, z_im, objs.squeeze(dim=-1))
+    
+    return fake_images
+
+def sample_from_json(args):
+    assert os.path.isfile(args.json_path)
+    assert os.path.isfile(args.model_path)
+    assert not os.path.exists(args.out_path)
+    os.mkdirs(fake_path:=os.path.join(args.out_path,"fake_images"))
+    layouts = load_json(args.json_path)
+    args.device = torch.device(args.device)
+    
+    with open(os.path.join(args.out_path,".json"),'w') as f:
+        json.dump(layouts, layouts)
+    netG = load_model(args.model_path, num_classes=args.num_classes, device=args.device)
+    netG.eval()
+
+    for layout in tqdm.tqdm(layouts, total=len(layouts)):
+        image_id = layout["image_id"]
+        bbox = layout["bbox"]
+        objs = layout["objs"]
+        fake_images = sample_from_layout(netG, bbox, objs, args.z_dim, args.sample_num, args.max_obj)
         
-        for j,img in enumerate(fake_images):
-            # misc.imsave("{save_path}/images/sample{".format(save_path=sample_path,
-            #             id=idx*batch_size+j, s_i=s_i), img.cpu().detach().numpy().transpose(1, 2, 0)*0.5+0.5)
-            misc.imsave("{save_path}/images/sample{id}_{s_i}.jpg".format(save_path=sample_path,
-                        id=idx*batch_size+j, s_i=s_i), img.cpu().detach().numpy().transpose(1, 2, 0)*0.5+0.5)
-        # if save_gt:
-        #     for k, img in enumerate(real_images):
-        #         misc.imsave("{save_path}/images_gt/sample{id}.jpg".format(save_path=sample_path,
-        #                                                                 s_i=s_i, id=idx*args.batch_size+k), img.cpu().detach().numpy().transpose(1, 2, 0)*0.5+0.5)
+        for j,img in enumerate(fake_images):# save image.
+            misc.imsave("{save_path}/{image_id}_{s_i}.jpg".format(save_path=fake_path,
+                        image_id=image_id, s_i=j), img.cpu().detach().numpy().transpose(1, 2, 0)*0.5+0.5)
 
-    paths = [f"{sample_path}/images", GT_IMAGES_PATH]
-    print('>>>calculating fid score...')
-    return calculate_fid_given_paths(paths, batch_size=50, device=torch.cuda.current_device(), dims=2048)
+def modify_args(args):
+    if args.datasets == "coco":
+        args.z_dim = 128
+        args.num_classes = 182
+        args.sample_num = 5
+        args.max_obj = 8
+    elif args.datasets == "vg":
+        args.z_dim = 128
+        args.num_classes = 179
+        args.sample_num = 5
+        args.max_obj = 30
+    else:
+        raise NotImplementedError
 
+    return args
+    
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type=str, default="coco", choices=["coco", "vg"])
+    parser.add_argument("--json_path", type=str, required=True)
+    parser.add_argument("--model_path", type=str, required=True)
+    parser.add_argument("--out_path", type=str, required=True)
+    parser.add_argument("--device", type=str, default="cuda:0")
+    args = parser.parse_args()
+    args = modify_args(args)
+    sample_from_json(args)
+    
+    
