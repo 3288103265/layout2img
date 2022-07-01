@@ -31,7 +31,7 @@ import PIL
 
 class VgSceneGraphDataset(Dataset):
     def __init__(self, vocab_json, h5_path, image_dir, image_size=(256, 256),
-                 normalize_images=True, max_objects=10, max_samples=None,
+                 normalize_images=True, max_objects=30, max_samples=None,
                  include_relationships=True, use_orphaned_objects=True,
                  left_right_flip=False):
         super(VgSceneGraphDataset, self).__init__()

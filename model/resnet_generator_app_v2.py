@@ -623,7 +623,7 @@ class ResnetGenerator256(nn.Module):
                 torch.nn.init.orthogonal_(k[1])
             if k[0][-4:] == 'bias':
                 torch.nn.init.constant_(k[1], 0)
-
+ 
 
 class ResBlock(nn.Module):
     def __init__(self, in_ch, out_ch, h_ch=None, ksize=3, pad=1, upsample=False, num_w=128, predict_mask=True, psp_module=False):

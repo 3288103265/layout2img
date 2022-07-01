@@ -320,7 +320,7 @@ class ResBlock(nn.Module):
     def forward(self, in_feat, w, bbox):
         return self.residual(in_feat, w, bbox) + self.shortcut(in_feat)
 
-
+# 用的很少
 class ResBlock_1(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(ResBlock_1, self).__init__()

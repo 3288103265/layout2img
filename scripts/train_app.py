@@ -189,6 +189,7 @@ def main(args):
 
             fake_images = netG(z, bbox, y=label.squeeze(dim=-1))
             d_out_fake, d_out_fobj, d_out_fobj_app = netD(fake_images.detach(), bbox, label)
+            # hinge loss type
             d_loss_fake = torch.nn.ReLU()(1.0 + d_out_fake).mean()
             d_loss_fobj = torch.nn.ReLU()(1.0 + d_out_fobj).mean()
             d_loss_fobj_app = torch.nn.ReLU()(1.0 + d_out_fobj_app).mean()
